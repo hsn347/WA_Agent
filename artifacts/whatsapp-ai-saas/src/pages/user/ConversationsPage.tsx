@@ -30,18 +30,45 @@ const AVATAR_COLORS = [
   "bg-teal-100 text-teal-700",
 ];
 
+const FAILED_AVATARS_KEY = "failed_avatar_urls";
+
+function getFailedAvatars(): Set<string> {
+  try {
+    const raw = sessionStorage.getItem(FAILED_AVATARS_KEY);
+    if (raw) return new Set(JSON.parse(raw));
+  } catch {}
+  return new Set();
+}
+
+const failedAvatarUrls = getFailedAvatars();
+
+function markAvatarFailed(url: string) {
+  if (!url) return;
+  failedAvatarUrls.add(url);
+  try {
+    sessionStorage.setItem(FAILED_AVATARS_KEY, JSON.stringify([...failedAvatarUrls]));
+  } catch {}
+}
+
 function Avatar({ name, phone, size = "md", avatarUrl }: { name?: string; phone: string; size?: "sm" | "md" | "lg"; avatarUrl?: string | null }) {
-  const [imgErr, setImgErr] = useState(false);
+  const isFailed = !avatarUrl || failedAvatarUrls.has(avatarUrl);
+  const [imgErr, setImgErr] = useState(isFailed);
   const letter = (name ?? phone).charAt(0).toUpperCase();
   const sz = size === "sm" ? "w-8 h-8 text-xs" : size === "lg" ? "w-12 h-12 text-base" : "w-10 h-10 text-sm";
   const color = AVATAR_COLORS[phone.charCodeAt(phone.length - 1) % AVATAR_COLORS.length]!;
-  if (avatarUrl && !imgErr) {
+
+  if (avatarUrl && !imgErr && !failedAvatarUrls.has(avatarUrl)) {
     return (
       <img
         src={avatarUrl}
         alt={name ?? phone}
+        referrerPolicy="no-referrer"
+        loading="lazy"
         className={cn("rounded-full object-cover shrink-0", sz)}
-        onError={() => setImgErr(true)}
+        onError={() => {
+          markAvatarFailed(avatarUrl);
+          setImgErr(true);
+        }}
       />
     );
   }
@@ -542,7 +569,7 @@ export default function ConversationsPage() {
                   <ChevronRight className="w-5 h-5" />
                 </button>
 
-                <Avatar name={activeConv.customerName} phone={activeConv.customerPhone} />
+                <Avatar name={activeConv.customerName} phone={activeConv.customerPhone} avatarUrl={activeConv.avatarUrl} />
 
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-sm text-foreground truncate">

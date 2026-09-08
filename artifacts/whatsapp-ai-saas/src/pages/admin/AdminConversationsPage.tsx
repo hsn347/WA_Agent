@@ -99,13 +99,48 @@ const STATUS_CFG: Record<string, { label: string; dot: string }> = {
 };
 
 /* ─── Avatar ─────────────────────────────────────────────────── */
+const FAILED_AVATARS_KEY = "failed_avatar_urls";
+
+function getFailedAvatars(): Set<string> {
+  try {
+    const raw = sessionStorage.getItem(FAILED_AVATARS_KEY);
+    if (raw) return new Set(JSON.parse(raw));
+  } catch {}
+  return new Set();
+}
+
+const failedAvatarUrls = getFailedAvatars();
+
+function markAvatarFailed(url: string) {
+  if (!url) return;
+  failedAvatarUrls.add(url);
+  try {
+    sessionStorage.setItem(FAILED_AVATARS_KEY, JSON.stringify([...failedAvatarUrls]));
+  } catch {}
+}
+
 const COLORS = ["bg-violet-100 text-violet-700", "bg-blue-100 text-blue-700", "bg-emerald-100 text-emerald-700", "bg-rose-100 text-rose-700", "bg-amber-100 text-amber-700"];
 function Avatar({ name, phone, url, size = "md" }: { name?: string; phone: string; url?: string | null; size?: "sm" | "md" }) {
-  const [err, setErr] = useState(false);
+  const isFailed = !url || failedAvatarUrls.has(url);
+  const [err, setErr] = useState(isFailed);
   const letter = (name ?? phone).charAt(0).toUpperCase();
   const sz = size === "sm" ? "w-8 h-8 text-xs" : "w-10 h-10 text-sm";
   const col = COLORS[phone.charCodeAt(phone.length - 1) % COLORS.length]!;
-  if (url && !err) return <img src={url} alt={letter} className={cn("rounded-full object-cover shrink-0 font-bold", sz)} onError={() => setErr(true)} />;
+  if (url && !err && !failedAvatarUrls.has(url)) {
+    return (
+      <img
+        src={url}
+        alt={letter}
+        referrerPolicy="no-referrer"
+        loading="lazy"
+        className={cn("rounded-full object-cover shrink-0 font-bold", sz)}
+        onError={() => {
+          markAvatarFailed(url);
+          setErr(true);
+        }}
+      />
+    );
+  }
   return <div className={cn("rounded-full flex items-center justify-center font-bold shrink-0", sz, col)}>{letter}</div>;
 }
 
