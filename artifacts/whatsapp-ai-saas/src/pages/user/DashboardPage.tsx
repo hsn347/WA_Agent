@@ -106,12 +106,18 @@ export default function DashboardPage() {
   const [toggling, setToggling] = useState(false);
 
   useEffect(() => {
-    Promise.all([api.user.dashboard(), api.user.conversations()])
-      .then(([s, c]) => {
-        setStats(s);
-        setConversations(c.slice(0, 6));
-      })
-      .finally(() => setLoading(false));
+    const loadData = () =>
+      Promise.all([api.user.dashboard(), api.user.conversations()])
+        .then(([s, c]) => {
+          setStats(s);
+          setConversations(c.slice(0, 6));
+        })
+        .finally(() => setLoading(false));
+
+    loadData();
+    // تحديث الإحصائيات كل 60 ثانية تلقائياً
+    const timer = setInterval(loadData, 60_000);
+    return () => clearInterval(timer);
   }, []);
 
   const toggleAgent = async () => {

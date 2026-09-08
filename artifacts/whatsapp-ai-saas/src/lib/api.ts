@@ -1,7 +1,18 @@
 const API_BASE = "https://new-dream1-1.onrender.com/api";
 
 const inMemoryCache = new Map<string, { data: any; timestamp: number }>();
-const CACHE_TTL = 1000 * 60 * 15; // 15 minutes (was 5)
+const CACHE_TTL = 1000 * 30; // 30 seconds — بيانات طازجة دائماً
+
+// هذه المسارات حساسة للوقت الفعلي — لا تُكاش أبداً
+const NO_CACHE_PATHS = [
+  "/user/conversations",
+  "/user/orders",
+  "/user/returns",
+  "/user/notifications",
+  "/user/dashboard",
+  "/user/analytics",
+  "/user/customers",
+];
 
 // Map of write endpoints to which read caches they should invalidate
 const INVALIDATION_MAP: Record<string, string[]> = {
@@ -64,10 +75,15 @@ function invalidateRelatedCache(path: string) {
   }
 }
 
-async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+/** bypassCache=true يُستخدم في البولينج الصامت لضمان جلب بيانات حقيقية من الخادم */
+async function apiFetch<T>(path: string, options?: RequestInit, bypassCache = false): Promise<T> {
   const method = options?.method || "GET";
   const isGet = method === "GET";
-  const shouldCache = isGet && path !== "/auth/me";
+
+  // لا كاش للمسارات الحساسة للوقت الفعلي
+  const basePath = path.split("?")[0];
+  const isNoCachePath = NO_CACHE_PATHS.some(p => basePath.startsWith(p));
+  const shouldCache = isGet && path !== "/auth/me" && !isNoCachePath && !bypassCache;
   const cacheKey = shouldCache ? `apiCache:${path}` : null;
 
   if (isGet && cacheKey) {
@@ -197,12 +213,16 @@ export const api = {
 
   user: {
     dashboard: () => apiFetch<DashboardStats>("/user/dashboard"),
+    /** للبولينج الصامت — يتخطى الكاش لضمان بيانات حقيقية من الخادم */
+    pollConversations: () => apiFetch<Conversation[]>("/user/conversations", undefined, true),
     conversations: () => apiFetch<Conversation[]>("/user/conversations"),
     pauseConversation: (id: number, paused: boolean) =>
       apiFetch<{ ok: boolean; paused: boolean }>(`/user/conversations/${id}/pause`, {
         method: "PATCH",
         body: JSON.stringify({ paused }),
       }),
+    /** للبولينج الصامت — يتخطى الكاش لضمان بيانات حقيقية من الخادم */
+    pollMessages: (convId: number) => apiFetch<Message[]>(`/user/conversations/${convId}/messages`, undefined, true),
     messages: (convId: number) => apiFetch<Message[]>(`/user/conversations/${convId}/messages`),
     clearMessages: (convId: number) =>
       apiFetch<{ ok: boolean }>(`/user/conversations/${convId}/messages`, { method: "DELETE" }),

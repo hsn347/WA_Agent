@@ -68,9 +68,9 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      gcTime: 1000 * 60 * 60 * 24,    // 24h in garbage-collection cache
-      staleTime: 1000 * 60 * 15,      // 15 min freshness (was 5 min)
-      refetchOnWindowFocus: false,
+      gcTime: 1000 * 60 * 5,       // 5 دقائق garbage-collection — لا نريد بيانات قديمة في الذاكرة
+      staleTime: 0,                 // البيانات دائماً قديمة — أعد الجلب عند كل mount
+      refetchOnWindowFocus: true,   // جلب جديد عند العودة للتبويب
       retry: (failureCount, error) => {
         // Don't retry on auth errors
         if (error instanceof Error && error.message.includes("401")) return false;
@@ -84,6 +84,9 @@ const persister = createSyncStoragePersister({
   storage: window.localStorage,
   throttleTime: 1000,
 });
+
+// لا نُحمّل بيانات عمرها أكثر من 5 دقائق عند فتح التطبيق
+const PERSIST_MAX_AGE = 1000 * 60 * 5; // 5 دقائق
 
 function ProtectedRoute({ children, requireAdmin = false }: { children: React.ReactNode; requireAdmin?: boolean }) {
   const { user, isLoading } = useAuth();
@@ -270,7 +273,7 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <PersistQueryClientProvider client={queryClient} persistOptions={{ persister }}>
+        <PersistQueryClientProvider client={queryClient} persistOptions={{ persister, maxAge: PERSIST_MAX_AGE }}>
           <TooltipProvider>
             <ConfirmProvider>
               <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>

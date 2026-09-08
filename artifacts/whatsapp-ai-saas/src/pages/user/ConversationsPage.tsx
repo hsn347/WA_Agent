@@ -9,6 +9,7 @@ import { PageLoader } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { api, type Conversation, type Message, type CustomerProfile } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabaseClient";
 
 /* ─── helpers ─────────────────────────────────────────────── */
 function formatTime(iso: string) {
@@ -211,7 +212,10 @@ export default function ConversationsPage() {
 
   const fetchConversations = useCallback(async (silent = false) => {
     try {
-      const convs = await api.user.conversations();
+      // البولينج الصامت: تخطّي الكاش لضمان بيانات حقيقية من الخادم
+      const convs = silent
+        ? await api.user.pollConversations()
+        : await api.user.conversations();
       setConversations(convs);
       if (!silent) setLoading(false);
     } catch {
@@ -222,7 +226,10 @@ export default function ConversationsPage() {
   const fetchMessages = useCallback(async (convId: number, silent = false) => {
     if (!silent) setLoadingMsgs(true);
     try {
-      const msgs = await api.user.messages(convId);
+      // البولينج الصامت: تخطّي الكاش لجلب الرسائل الجديدة فوراً
+      const msgs = silent
+        ? await api.user.pollMessages(convId)
+        : await api.user.messages(convId);
       setMessages(msgs);
     } catch {}
     if (!silent) setLoadingMsgs(false);
@@ -246,7 +253,8 @@ export default function ConversationsPage() {
 
   useEffect(() => {
     fetchConversations();
-    convPollRef.current = setInterval(() => fetchConversations(true), 5000);
+    // Fallback polling — Realtime يتولى التحديث الفوري عند تغيير في DB
+    convPollRef.current = setInterval(() => fetchConversations(true), 15_000);
     return () => { if (convPollRef.current) clearInterval(convPollRef.current); };
   }, [fetchConversations]);
 
@@ -254,10 +262,49 @@ export default function ConversationsPage() {
     if (msgPollRef.current) clearInterval(msgPollRef.current);
     if (selected === null) { setMessages([]); setCustomerProfile(null); setShowProfile(false); return; }
     fetchMessages(selected);
+    // Fallback polling — يضمن التحديث حتى بدون Realtime
     msgPollRef.current = setInterval(() => {
       if (selectedRef.current !== null) fetchMessages(selectedRef.current, true);
-    }, 3000);
+    }, 10_000);
     return () => { if (msgPollRef.current) clearInterval(msgPollRef.current); };
+  }, [selected, fetchMessages]);
+
+  // ─── Supabase Realtime ────────────────────────────────────────────────────────────────────
+  // محادثات: عند INSERT/UPDATE → أعد جلب قائمة المحادثات فوراً
+  // رسائل: عند INSERT في محادثة محددة → أعد جلب رسائلهافوراً
+  useEffect(() => {
+    if (!supabase) return;
+
+    const convChannel = supabase
+      .channel("conversations:realtime")
+      .on("postgres_changes" as any, {
+        event: "*",
+        schema: "public",
+        table: "conversations",
+      }, () => {
+        fetchConversations(true);
+      })
+      .subscribe();
+
+    return () => { if (supabase) supabase.removeChannel(convChannel); };
+  }, [fetchConversations]);
+
+  useEffect(() => {
+    if (!supabase || selected === null) return;
+
+    const msgChannel = supabase
+      .channel(`messages:conv:${selected}`)
+      .on("postgres_changes" as any, {
+        event: "INSERT",
+        schema: "public",
+        table: "messages",
+        filter: `conversation_id=eq.${selected}`,
+      }, () => {
+        fetchMessages(selected, true);
+      })
+      .subscribe();
+
+    return () => { if (supabase) supabase.removeChannel(msgChannel); };
   }, [selected, fetchMessages]);
 
   useEffect(() => {

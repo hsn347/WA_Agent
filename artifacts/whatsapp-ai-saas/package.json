@@ -72,6 +72,7 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "@supabase/supabase-js": "catalog:",
     "@tanstack/query-sync-storage-persister": "^5.101.2",
     "@tanstack/react-query-persist-client": "^5.101.2",
     "xlsx": "^0.18.5"

@@ -10,6 +10,7 @@ import {
 import { PageLoader } from "@/components/ui/spinner";
 import { api, type Return, type ReturnStatus } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { useRealtimeSync } from "@/hooks/useRealtimeSync";
 
 type OrderStatus = "draft" | "pending_payment" | "pending_review" | "approved" | "rejected" | "delivered" | "cancelled" | "returned";
 
@@ -476,13 +477,21 @@ export default function OrdersPage() {
   const { data: orders = [], isLoading: ordersLoading } = useQuery({
     queryKey: ["orders"],
     queryFn: () => api.user.orders.list(),
-    refetchInterval: 30000,
+    // Realtime يتولى التحديث الفوري — polling فقط كاحتياط (offline أو غياب المتغيرات)
+    refetchInterval: 30_000,
   });
 
   const { data: returns = [], isLoading: returnsLoading } = useQuery<Return[]>({
     queryKey: ["returns"],
     queryFn: () => api.user.returns.list(),
-    refetchInterval: 30000,
+    refetchInterval: 30_000,
+  });
+
+  // ─── Supabase Realtime ────────────────────────────────────────────────────────────────────
+  // عند INSERT/UPDATE في جدول orders أو returns → يُبطل الكاش فوراً
+  useRealtimeSync({
+    orders:  ["orders"],
+    returns: ["returns"],
   });
 
   const allOrders = orders as Order[];

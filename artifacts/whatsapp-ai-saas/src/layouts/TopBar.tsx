@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabaseClient";
 
 interface TopBarProps {
   title: string;
@@ -51,8 +52,28 @@ function NotificationPanel() {
 
   useEffect(() => {
     loadNotifs();
-    const timer = setInterval(loadNotifs, 30000);
+    // Fallback polling — Realtime يتولى التحديث الفوري
+    const timer = setInterval(loadNotifs, 60_000);
     return () => clearInterval(timer);
+  }, []);
+
+  // ─── Supabase Realtime ────────────────────────────────────────────────────────────────────
+  // عند INSERT في notifications → أعد جلب الإشعارات فوراً (بدل انتظار 30 ثانية)
+  useEffect(() => {
+    if (!supabase) return;
+
+    const notifChannel = supabase
+      .channel("notifications:realtime")
+      .on("postgres_changes" as any, {
+        event: "INSERT",
+        schema: "public",
+        table: "notifications",
+      }, () => {
+        loadNotifs();
+      })
+      .subscribe();
+
+    return () => { if (supabase) supabase.removeChannel(notifChannel); };
   }, []);
 
   useEffect(() => {
