@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { api, type KnowledgeEntry, type KnowledgeEntryPayload } from "@/lib/api";
+import { api, getApiCache, type KnowledgeEntry, type KnowledgeEntryPayload } from "@/lib/api";
 import { BookOpen, Plus, Save, Trash2, Pencil, X, Check, Brain, Loader2, RefreshCw } from "lucide-react";
 import { PageLoader } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
@@ -28,8 +28,9 @@ interface EditState {
 
 export default function KnowledgePage() {
   const { toast } = useToast();
-  const [entries, setEntries] = useState<KnowledgeEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cachedKnowledge = getApiCache<KnowledgeEntry[]>("/user/knowledge");
+  const [entries, setEntries] = useState<KnowledgeEntry[]>(() => cachedKnowledge ?? []);
+  const [loading, setLoading] = useState(() => !cachedKnowledge);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState<KnowledgeEntryPayload>({ title: "", content: "", type: "custom" });
   const [saving, setSaving] = useState(false);
@@ -39,10 +40,15 @@ export default function KnowledgePage() {
   const [loadingTemplates, setLoadingTemplates] = useState(false);
 
   const loadEntries = useCallback(() => {
-    setLoading(true);
+    setEntries(prev => {
+      if (prev.length === 0) setLoading(true);
+      return prev;
+    });
     api.user.knowledge.list()
       .then(setEntries)
-      .catch(() => toast({ title: "خطأ في تحميل قاعدة المعرفة", variant: "destructive" }))
+      .catch(() => {
+        if (!cachedKnowledge) toast({ title: "خطأ في تحميل قاعدة المعرفة", variant: "destructive" });
+      })
       .finally(() => setLoading(false));
   }, [toast]);
 

@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { PageLoader } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import { api, type Conversation, type Message, type CustomerProfile } from "@/lib/api";
+import { api, getApiCache, type Conversation, type Message, type CustomerProfile } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -185,16 +185,23 @@ function ConvRow({
   );
 }
 
+let lastSelectedConvId: number | null = null;
+
 /* ─── main component ──────────────────────────────────────── */
 export default function ConversationsPage() {
   const { toast } = useToast();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [conversations, setConversations] = useState<Conversation[]>(() => getApiCache<Conversation[]>("/user/conversations") ?? []);
+  const [selected, setSelected] = useState<number | null>(() => lastSelectedConvId);
+  const [messages, setMessages] = useState<Message[]>(() => {
+    if (lastSelectedConvId !== null) {
+      return getApiCache<Message[]>(`/user/conversations/${lastSelectedConvId}/messages`) ?? [];
+    }
+    return [];
+  });
+  const [loading, setLoading] = useState(() => !getApiCache("/user/conversations"));
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [filter, setFilter] = useState<"all" | "active" | "pending" | "closed">("all");
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<number | null>(null);
   const [pausingId, setPausingId] = useState<number | null>(null);
   const [clearingId, setClearingId] = useState<number | null>(null);
   const [confirmClearId, setConfirmClearId] = useState<number | null>(null);
@@ -209,6 +216,10 @@ export default function ConversationsPage() {
   const msgPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const selectedRef = useRef<number | null>(null);
   selectedRef.current = selected;
+
+  useEffect(() => {
+    lastSelectedConvId = selected;
+  }, [selected]);
 
   const fetchConversations = useCallback(async (silent = false) => {
     try {
@@ -478,10 +489,10 @@ export default function ConversationsPage() {
 
         {/* List */}
         <div className="flex-1 overflow-y-auto">
-          {loading && (
+          {loading && conversations.length === 0 && (
             <PageLoader text="جاري تحميل المحادثات..." />
           )}
-          {!loading && filtered.length === 0 && (
+          {(!loading || conversations.length > 0) && filtered.length === 0 && (
             <div className="py-14 text-center text-muted-foreground flex flex-col items-center gap-2">
               <div className="w-14 h-14 rounded-full bg-muted/60 flex items-center justify-center">
                 <MessageCircle className="w-6 h-6 opacity-25" />
@@ -494,7 +505,7 @@ export default function ConversationsPage() {
               </p>
             </div>
           )}
-          {!loading && filtered.map(c => (
+          {filtered.map(c => (
             <ConvRow
               key={c.id}
               conv={c}

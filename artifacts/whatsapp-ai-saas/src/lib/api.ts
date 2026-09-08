@@ -1,18 +1,8 @@
 const API_BASE = "https://new-dream1-1.onrender.com/api";
 
 const inMemoryCache = new Map<string, { data: any; timestamp: number }>();
-const CACHE_TTL = 1000 * 30; // 30 seconds — بيانات طازجة دائماً
-
-// هذه المسارات حساسة للوقت الفعلي — لا تُكاش أبداً
-const NO_CACHE_PATHS = [
-  "/user/conversations",
-  "/user/orders",
-  "/user/returns",
-  "/user/notifications",
-  "/user/dashboard",
-  "/user/analytics",
-  "/user/customers",
-];
+// Default cache TTL: 2 minutes for instant WhatsApp-like navigation
+const CACHE_TTL = 1000 * 60 * 2;
 
 // Map of write endpoints to which read caches they should invalidate
 const INVALIDATION_MAP: Record<string, string[]> = {
@@ -34,6 +24,56 @@ const INVALIDATION_MAP: Record<string, string[]> = {
   "/user/notifications": ["/user/notifications"],
 };
 
+export function getApiCache<T>(path: string): T | null {
+  const cacheKey = `apiCache:${path}`;
+  const mem = inMemoryCache.get(cacheKey);
+  if (mem) return mem.data as T;
+  try {
+    const stored = localStorage.getItem(cacheKey);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      inMemoryCache.set(cacheKey, parsed);
+      return parsed.data as T;
+    }
+  } catch {}
+  return null;
+}
+
+export function setApiCache<T>(path: string, data: T) {
+  const cacheKey = `apiCache:${path}`;
+  const cacheObj = { data, timestamp: Date.now() };
+  inMemoryCache.set(cacheKey, cacheObj);
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify(cacheObj));
+  } catch {}
+}
+
+export function invalidateApiCache(pathPrefix?: string) {
+  if (!pathPrefix) {
+    inMemoryCache.clear();
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k?.startsWith("apiCache:")) keysToRemove.push(k);
+      }
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+    } catch {}
+    return;
+  }
+  for (const key of inMemoryCache.keys()) {
+    if (key.includes(pathPrefix)) inMemoryCache.delete(key);
+  }
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k?.startsWith("apiCache:") && k.includes(pathPrefix)) keysToRemove.push(k);
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+  } catch {}
+}
+
 function invalidateRelatedCache(path: string) {
   // Find the base path (remove IDs)
   const basePath = path.replace(/\/\d+/g, "").split("?")[0];
@@ -43,18 +83,7 @@ function invalidateRelatedCache(path: string) {
   for (const [pattern, targets] of Object.entries(INVALIDATION_MAP)) {
     if (basePath.startsWith(pattern) || basePath === pattern) {
       for (const target of targets) {
-        // Remove all cache entries starting with this target
-        for (const key of inMemoryCache.keys()) {
-          if (key.includes(target)) inMemoryCache.delete(key);
-        }
-        try {
-          const keysToRemove: string[] = [];
-          for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (k?.startsWith("apiCache:") && k.includes(target)) keysToRemove.push(k);
-          }
-          keysToRemove.forEach(k => localStorage.removeItem(k));
-        } catch {}
+        invalidateApiCache(target);
       }
       invalidated = true;
       break;
@@ -63,53 +92,40 @@ function invalidateRelatedCache(path: string) {
   
   // Fallback: if no matching rule, clear everything
   if (!invalidated) {
-    inMemoryCache.clear();
-    try {
-      const keysToRemove: string[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key?.startsWith("apiCache:")) keysToRemove.push(key);
-      }
-      keysToRemove.forEach(k => localStorage.removeItem(k));
-    } catch {}
+    invalidateApiCache();
   }
 }
 
-/** bypassCache=true يُستخدم في البولينج الصامت لضمان جلب بيانات حقيقية من الخادم */
+/** bypassCache=true يُستخدم في البولينج الصامت أو التحديث الإجباري لضمان جلب بيانات حقيقية من الخادم */
 async function apiFetch<T>(path: string, options?: RequestInit, bypassCache = false): Promise<T> {
   const method = options?.method || "GET";
   const isGet = method === "GET";
 
-  // لا كاش للمسارات الحساسة للوقت الفعلي
-  const basePath = path.split("?")[0];
-  const isNoCachePath = NO_CACHE_PATHS.some(p => basePath.startsWith(p));
-  const shouldCache = isGet && path !== "/auth/me" && !isNoCachePath && !bypassCache;
+  // Cache key for GET requests (except /auth/me)
+  const shouldCache = isGet && path !== "/auth/me" && !bypassCache;
   const cacheKey = shouldCache ? `apiCache:${path}` : null;
 
   if (isGet && cacheKey) {
-    let cached = inMemoryCache.get(cacheKey);
-    if (!cached) {
-      try {
-        const stored = localStorage.getItem(cacheKey);
-        if (stored) cached = JSON.parse(stored);
-      } catch { }
-    }
+    const cached = getApiCache<T>(path);
+    const mem = inMemoryCache.get(cacheKey);
 
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-      inMemoryCache.set(cacheKey, cached);
-      return cached.data as T;
+    // If cache is fresh, return immediately without network call
+    if (cached && mem && Date.now() - mem.timestamp < CACHE_TTL) {
+      return cached;
     }
   }
-
 
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { "Content-Type": "application/json" },
     credentials: "include",
     ...options,
   });
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error((err as { message?: string }).message || res.statusText);
+    const error = new Error((err as { message?: string }).message || res.statusText);
+    (error as any).status = res.status;
+    throw error;
   }
 
   if (res.status === 204) return undefined as unknown as T;
@@ -117,11 +133,7 @@ async function apiFetch<T>(path: string, options?: RequestInit, bypassCache = fa
   const data = await res.json();
 
   if (isGet && cacheKey) {
-    const cacheObj = { data, timestamp: Date.now() };
-    inMemoryCache.set(cacheKey, cacheObj);
-    try {
-      localStorage.setItem(cacheKey, JSON.stringify(cacheObj));
-    } catch { }
+    setApiCache(path, data);
   } else if (!isGet) {
     // Smart cache invalidation: only clear caches related to the mutated endpoint
     invalidateRelatedCache(path);

@@ -5,7 +5,7 @@ import {
   ChevronRight, X, Edit3, Check, Loader2, UserX,
 } from "lucide-react";
 import { PageLoader } from "@/components/ui/spinner";
-import { api, type CustomerProfile } from "@/lib/api";
+import { api, getApiCache, type CustomerProfile } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
@@ -249,8 +249,9 @@ function ProfilePanel({ profile, onClose, onUpdate, isMobile }: {
 /* ─── main page ────────────────────────────────────────────── */
 export default function CustomersPage() {
   const { toast } = useToast();
-  const [profiles, setProfiles] = useState<CustomerProfile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cachedCustomers = getApiCache<CustomerProfile[]>("/user/customers");
+  const [profiles, setProfiles] = useState<CustomerProfile[]>(() => cachedCustomers ?? []);
+  const [loading, setLoading] = useState(() => !cachedCustomers);
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<CustomerProfile | null>(null);
   const [filterBuyer, setFilterBuyer] = useState<"all" | "buyers" | "notBought">("all");
@@ -264,12 +265,15 @@ export default function CustomersPage() {
   }, []);
 
   const fetchProfiles = useCallback(async () => {
-    setLoading(true);
+    setProfiles(prev => {
+      if (prev.length === 0) setLoading(true);
+      return prev;
+    });
     try {
       const data = await api.user.customers.list();
       setProfiles(data);
     } catch {
-      toast({ title: "فشل تحميل بيانات العملاء", variant: "destructive" });
+      if (!cachedCustomers) toast({ title: "فشل تحميل بيانات العملاء", variant: "destructive" });
     } finally {
       setLoading(false);
     }

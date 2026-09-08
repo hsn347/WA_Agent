@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { api, type Product, type ProductPayload } from "@/lib/api";
+import { api, getApiCache, type Product, type ProductPayload } from "@/lib/api";
 import {
   Plus, Edit2, Trash2, Package, Search, ImageIcon, X, Save, Check, Upload, Loader2,
   ChevronLeft, Tag, Archive, ToggleLeft, ToggleRight, Info, AlertTriangle,
@@ -470,10 +470,12 @@ function Pagination({ page, total, perPage, onChange }: { page: number; total: n
 
 export default function ProductsPage() {
   const { toast } = useToast();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [total, setTotal] = useState(0);
-  const [counts, setCounts] = useState({ active: 0, inactive: 0, low_stock: 0 });
-  const [loading, setLoading] = useState(true);
+  const initialCache = getApiCache<{ items: Product[]; total: number; counts: { active: number; inactive: number; low_stock: number } }>("/user/products?page=1&limit=20") 
+    || getApiCache<{ items: Product[]; total: number; counts: { active: number; inactive: number; low_stock: number } }>("/user/products");
+  const [products, setProducts] = useState<Product[]>(() => initialCache?.items ?? []);
+  const [total, setTotal] = useState(() => initialCache?.total ?? 0);
+  const [counts, setCounts] = useState(() => initialCache?.counts ?? { active: 0, inactive: 0, low_stock: 0 });
+  const [loading, setLoading] = useState(() => !initialCache);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive" | "low_stock">("all");
@@ -488,7 +490,11 @@ export default function ProductsPage() {
   const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchProducts = async (opts?: { p?: number; q?: string; status?: string; threshold?: number }) => {
-    setLoading(true);
+    // Only show full loader if there are no cached products to display
+    setProducts(prev => {
+      if (prev.length === 0) setLoading(true);
+      return prev;
+    });
     try {
       const res = await api.user.products.list({
         page: opts?.p ?? page,

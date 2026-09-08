@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { api, type AnalyticsData } from "@/lib/api";
+import { api, getApiCache, type AnalyticsData } from "@/lib/api";
 import {
   AreaChart, CartesianGrid, ResponsiveContainer,
   Area as _Area, XAxis as _XAxis, YAxis as _YAxis, Tooltip as _Tooltip
@@ -156,12 +156,19 @@ function ProductRankList({
 
 export default function AnalyticsPage() {
   const [period, setPeriod] = useState<Period>("30");
-  const [data, setData] = useState<AnalyticsData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const cachedAnalytics = getApiCache<AnalyticsData>(`/user/analytics?period=30`);
+  const [data, setData] = useState<AnalyticsData | null>(() => cachedAnalytics);
+  const [loading, setLoading] = useState(() => !cachedAnalytics);
   const isMobile = useIsMobile();
 
   useEffect(() => {
-    setLoading(true);
+    const cached = getApiCache<AnalyticsData>(`/user/analytics?period=${period}`);
+    if (cached) {
+      setData(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     api.user.analytics(period)
       .then(setData)
       .catch(() => {})

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { api, type Business, type WorkingHour, type Shift, type BankAccount } from "@/lib/api";
+import { api, getApiCache, type Business, type WorkingHour, type Shift, type BankAccount } from "@/lib/api";
 import {
   Building2, Plus, Trash2, Save, Check, Phone, GitBranch,
   Share2, Landmark, Clock, Globe, Loader2, Info, ChevronDown, ChevronUp,
@@ -234,10 +234,20 @@ function LogoUploader({ logoUrl, onLogoChange }: { logoUrl: string; onLogoChange
 export default function BusinessPage() {
   const { toast } = useToast();
   const [tab, setTab] = useState("general");
-  const [loading, setLoading] = useState(true);
+  const cachedBiz = getApiCache<Business>("/user/business");
+  const [biz, setBiz] = useState<Business>(() => {
+    if (cachedBiz) {
+      const wh = cachedBiz.workingHours?.length ? normalizeHours(cachedBiz.workingHours) : DEFAULT_HOURS;
+      const sl = cachedBiz.socialLinks && Object.keys(cachedBiz.socialLinks).length
+        ? cachedBiz.socialLinks
+        : { واتساب: "", فيسبوك: "", إنستقرام: "", "تويتر / X": "", "سناب شات": "" };
+      return { ...cachedBiz, workingHours: wh, socialLinks: sl };
+    }
+    return EMPTY_BUSINESS;
+  });
+  const [loading, setLoading] = useState(() => !cachedBiz);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [biz, setBiz] = useState<Business>(EMPTY_BUSINESS);
   const [openBankIdx, setOpenBankIdx] = useState<number | null>(null);
   const [quickShifts, setQuickShifts] = useState<Shift[]>([{ open: "08:00", close: "13:00" }, { open: "16:00", close: "22:00" }]);
 
@@ -250,7 +260,9 @@ export default function BusinessPage() {
           : { واتساب: "", فيسبوك: "", إنستقرام: "", "تويتر / X": "", "سناب شات": "" };
         setBiz({ ...data, workingHours: wh, socialLinks: sl });
       })
-      .catch(() => toast({ title: "خطأ في التحميل", variant: "destructive" }))
+      .catch(() => {
+        if (!cachedBiz) toast({ title: "خطأ في التحميل", variant: "destructive" });
+      })
       .finally(() => setLoading(false));
   }, []);
 

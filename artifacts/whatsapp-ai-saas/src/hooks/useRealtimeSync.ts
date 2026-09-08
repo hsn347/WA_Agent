@@ -1,7 +1,16 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase, type RealtimeTable } from "@/lib/supabaseClient";
+import { invalidateApiCache } from "@/lib/api";
 import type { RealtimeChannel } from "@supabase/supabase-js";
+
+const TABLE_TO_API_PATH: Record<string, string> = {
+  orders: "/user/orders",
+  returns: "/user/returns",
+  conversations: "/user/conversations",
+  messages: "/user/conversations",
+  notifications: "/user/notifications",
+};
 
 type QueryKeyMap = Partial<Record<RealtimeTable, unknown[]>>;
 
@@ -9,7 +18,7 @@ type QueryKeyMap = Partial<Record<RealtimeTable, unknown[]>>;
  * useRealtimeSync
  *
  * Hook يشترك في تغييرات Supabase Realtime لجداول محددة ويُبطل
- * كاش React Query تلقائياً عند أي INSERT أو UPDATE أو DELETE.
+ * كاش React Query وكاش API تلقائياً عند أي INSERT أو UPDATE أو DELETE.
  *
  * @example
  * // في OrdersPage — يُبطل ["orders"] و["returns"] عند أي تغيير
@@ -59,8 +68,12 @@ export function useRealtimeSync(
           ...(userId ? { filter: `user_id=eq.${userId}` } : {}),
         },
         (_payload: unknown) => {
-          // إبطال الكاش → React Query يُعيد الجلب فوراً
+          // إبطال كاش React Query
           queryClient.invalidateQueries({ queryKey });
+
+          // إبطال كاش api.ts أيضاً لجلب البيانات الطازجة فوراً
+          const apiPath = TABLE_TO_API_PATH[table];
+          if (apiPath) invalidateApiCache(apiPath);
         }
       );
     });

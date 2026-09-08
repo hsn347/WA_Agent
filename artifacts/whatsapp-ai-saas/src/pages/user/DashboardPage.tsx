@@ -5,7 +5,7 @@ import {
   Truck, FileText, TrendingUp, Users, Zap, ArrowUpRight,
 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { api, type DashboardStats, type Conversation } from "@/lib/api";
+import { api, getApiCache, type DashboardStats, type Conversation } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Link } from "wouter";
 
@@ -100,9 +100,9 @@ function ConvBar({ stats }: { stats: DashboardStats }) {
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<DashboardStats | null>(() => getApiCache<DashboardStats>("/user/dashboard"));
+  const [conversations, setConversations] = useState<Conversation[]>(() => getApiCache<Conversation[]>("/user/conversations")?.slice(0, 6) ?? []);
+  const [loading, setLoading] = useState(() => !getApiCache("/user/dashboard"));
   const [toggling, setToggling] = useState(false);
 
   useEffect(() => {

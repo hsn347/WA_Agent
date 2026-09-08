@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { PageLoader } from "@/components/ui/spinner";
 import SmartPhoneInput from "@/components/SmartPhoneInput";
-import { api, type UserSettings, type GroupConversation } from "@/lib/api";
+import { api, getApiCache, type UserSettings, type GroupConversation } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
@@ -131,8 +131,19 @@ const SEARCH_INDEX: { section: string; terms: string[] }[] = [
 
 export default function SettingsPage() {
   const { toast } = useToast();
-  const [form, setForm] = useState<UserSettings>(DEFAULT);
-  const [loading, setLoading] = useState(true);
+  const cachedSettings = getApiCache<UserSettings>("/user/settings");
+  const [form, setForm] = useState<UserSettings>(() => {
+    if (cachedSettings) {
+      return {
+        ...DEFAULT,
+        ...cachedSettings,
+        openingMessage: cachedSettings.openingMessage ?? DEFAULT.openingMessage,
+        closingMessage: cachedSettings.closingMessage ?? DEFAULT.closingMessage,
+      };
+    }
+    return DEFAULT;
+  });
+  const [loading, setLoading] = useState(() => !cachedSettings);
   const [openSection, setOpenSection] = useState<string>("");
   const [savingSection, setSavingSection] = useState<string | null>(null);
   const [savedSection, setSavedSection] = useState<string | null>(null);

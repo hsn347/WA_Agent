@@ -20,6 +20,7 @@ interface AuthContextType {
 export const AuthContext = createContext<AuthContextType | null>(null);
 
 const USER_CACHE_KEY = "auth_user_cache";
+const CREDS_CACHE_KEY = "auth_credentials_cache";
 
 function getCachedUser(): User | null {
   try {
@@ -41,25 +42,99 @@ function setCachedUser(user: User | null) {
   } catch {}
 }
 
+function getCachedCredentials(): { email: string; password: string } | null {
+  try {
+    const raw = localStorage.getItem(CREDS_CACHE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function setCachedCredentials(creds: { email: string; password: string } | null) {
+  try {
+    if (creds) {
+      localStorage.setItem(CREDS_CACHE_KEY, JSON.stringify(creds));
+    } else {
+      localStorage.removeItem(CREDS_CACHE_KEY);
+    }
+  } catch {}
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  // Initialize from cache for instant render (no spinner on revisit)
+  // Initialize from cache for instant 0ms render (WhatsApp-style: never show spinner on reopen)
   const [user, setUser] = useState<User | null>(getCachedUser);
   const [isLoading, setIsLoading] = useState(!getCachedUser());
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    // Always verify with server in background
-    api.auth.me()
-      .then((u) => {
-        const verified = u as User | null;
-        setUser(verified);
-        setCachedUser(verified);
-      })
-      .catch(() => {
-        setUser(null);
-        setCachedUser(null);
-      })
-      .finally(() => setIsLoading(false));
+    let mounted = true;
+
+    async function verifySession() {
+      try {
+        const u = await api.auth.me();
+        if (!mounted) return;
+
+        if (u) {
+          const verified = u as User;
+          setUser(verified);
+          setCachedUser(verified);
+        } else {
+          // Session cookie missing or expired — attempt silent re-authentication
+          const creds = getCachedCredentials();
+          if (creds?.email && creds?.password) {
+            try {
+              const reAuth = await api.auth.login(creds.email, creds.password);
+              if (reAuth && mounted) {
+                const typed = reAuth as User;
+                setUser(typed);
+                setCachedUser(typed);
+                return;
+              }
+            } catch {
+              // Silent re-auth failed
+            }
+          }
+          if (mounted) {
+            setUser(null);
+            setCachedUser(null);
+          }
+        }
+      } catch (err: any) {
+        // Network error, Render waking up, or offline:
+        // DO NOT log out the user! Maintain offline/persistent session like WhatsApp
+        console.warn("[Auth] Background check error; keeping persistent session:", err?.message);
+
+        // If explicit auth rejection (401/403), attempt recovery
+        if (err?.status === 401 || err?.status === 403) {
+          const creds = getCachedCredentials();
+          if (creds?.email && creds?.password) {
+            try {
+              const reAuth = await api.auth.login(creds.email, creds.password);
+              if (reAuth && mounted) {
+                const typed = reAuth as User;
+                setUser(typed);
+                setCachedUser(typed);
+                return;
+              }
+            } catch {}
+          }
+          if (mounted) {
+            setUser(null);
+            setCachedUser(null);
+          }
+        }
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
+    }
+
+    verifySession();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
@@ -68,6 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const typedUser = u as User;
       setUser(typedUser);
       setCachedUser(typedUser);
+      setCachedCredentials({ email, password });
       return true;
     } catch {
       return false;
@@ -78,6 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     api.auth.logout().catch(() => {});
     setUser(null);
     setCachedUser(null);
+    setCachedCredentials(null);
     setLocation("/login");
   };
 

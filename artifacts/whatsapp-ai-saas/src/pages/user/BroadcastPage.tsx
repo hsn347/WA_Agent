@@ -6,7 +6,7 @@ import {
   ChevronDown, ChevronUp, BadgeCheck, XCircle,
   CheckCircle2, ArrowLeft, ArrowRight, Globe, Heart,
 } from "lucide-react";
-import { api, type BroadcastCampaign, type BroadcastSegmentCount, type BroadcastProductItem } from "@/lib/api";
+import { api, getApiCache, type BroadcastCampaign, type BroadcastSegmentCount, type BroadcastProductItem } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { COUNTRIES } from "@/components/SmartPhoneInput";
@@ -402,25 +402,36 @@ export default function BroadcastPage() {
     { label: "بعد أسبوعين", days: 14 },
   ];
 
-  const [segmentCounts, setSegmentCounts] = useState<Record<string, number>>({});
-  const [loadingSegments, setLoadingSegments] = useState(true);
-  const [campaigns, setCampaigns] = useState<BroadcastCampaign[]>([]);
-  const [loadingCampaigns, setLoadingCampaigns] = useState(true);
+  const cachedSegments = getApiCache<BroadcastSegmentCount[]>("/user/broadcast/segments");
+  const cachedCampaigns = getApiCache<BroadcastCampaign[]>("/user/broadcast/campaigns");
+  const cachedProducts = getApiCache<BroadcastProductItem[]>("/user/broadcast/products");
+
+  const [segmentCounts, setSegmentCounts] = useState<Record<string, number>>(() => {
+    if (cachedSegments) {
+      const map: Record<string, number> = {};
+      cachedSegments.forEach((s: BroadcastSegmentCount) => { map[s.id] = s.count; });
+      return map;
+    }
+    return {};
+  });
+  const [loadingSegments, setLoadingSegments] = useState(() => !cachedSegments);
+  const [campaigns, setCampaigns] = useState<BroadcastCampaign[]>(() => cachedCampaigns ?? []);
+  const [loadingCampaigns, setLoadingCampaigns] = useState(() => !cachedCampaigns);
   const [sending, setSending] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [products, setProducts] = useState<BroadcastProductItem[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [products, setProducts] = useState<BroadcastProductItem[]>(() => cachedProducts ?? []);
+  const [loadingProducts, setLoadingProducts] = useState(() => !cachedProducts);
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
 
   const loadSegments = useCallback(async () => {
-    setLoadingSegments(true);
+    if (!cachedSegments) setLoadingSegments(true);
     try {
       const data = await api.user.broadcast.segments();
       const map: Record<string, number> = {};
       data.forEach((s: BroadcastSegmentCount) => { map[s.id] = s.count; });
       setSegmentCounts(map);
     } catch {
-      toast({ title: "تعذّر تحميل الشرائح", variant: "destructive" });
+      if (!cachedSegments) toast({ title: "تعذّر تحميل الشرائح", variant: "destructive" });
     } finally {
       setLoadingSegments(false);
     }
@@ -431,7 +442,7 @@ export default function BroadcastPage() {
       const data = await api.user.broadcast.campaigns();
       setCampaigns(data);
     } catch {
-      toast({ title: "تعذّر تحميل سجل الحملات", variant: "destructive" });
+      if (!cachedCampaigns) toast({ title: "تعذّر تحميل سجل الحملات", variant: "destructive" });
     } finally {
       setLoadingCampaigns(false);
     }

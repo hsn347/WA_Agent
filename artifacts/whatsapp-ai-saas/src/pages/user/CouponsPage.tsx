@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { api, type Coupon, type CouponPayload, type Product } from "@/lib/api";
+import { api, getApiCache, type Coupon, type CouponPayload, type Product } from "@/lib/api";
 import { Plus, Copy, Trash2, Tag, Edit2, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -91,9 +91,10 @@ function ProductMultiSelect({
 
 export default function CouponsPage() {
   const { toast } = useToast();
-  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const cachedCoupons = getApiCache<Coupon[]>("/user/coupons");
+  const [coupons, setCoupons] = useState<Coupon[]>(() => cachedCoupons ?? []);
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !cachedCoupons);
   const [saving, setSaving] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editTarget, setEditTarget] = useState<Coupon | null>(null);
@@ -105,7 +106,9 @@ export default function CouponsPage() {
       api.user.products.list(),
     ])
       .then(([c, p]) => { setCoupons(c); setProducts(p.items.filter((pr) => pr.status === "active")); })
-      .catch(() => toast({ title: "خطأ في التحميل", variant: "destructive" }))
+      .catch(() => {
+        if (!cachedCoupons) toast({ title: "خطأ في التحميل", variant: "destructive" });
+      })
       .finally(() => setLoading(false));
   }, []);
 

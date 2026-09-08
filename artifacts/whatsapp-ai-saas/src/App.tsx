@@ -68,11 +68,11 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      gcTime: 1000 * 60 * 5,       // 5 دقائق garbage-collection — لا نريد بيانات قديمة في الذاكرة
-      staleTime: 0,                 // البيانات دائماً قديمة — أعد الجلب عند كل mount
-      refetchOnWindowFocus: true,   // جلب جديد عند العودة للتبويب
+      gcTime: 1000 * 60 * 60 * 24,       // 24 ساعة في الذاكرة لتجربة فورية كواتساب
+      staleTime: 1000 * 60 * 5,          // 5 دقائق — لا إعادة تحميل عند التنقل بين الصفحات في نفس الجلسة
+      refetchOnWindowFocus: false,       // تجنب الومضات عند التبديل بين النوافذ أو التطبيقات
+      refetchOnMount: false,             // استخدام البيانات المحفوظة فوراً بدون انتظار
       retry: (failureCount, error) => {
-        // Don't retry on auth errors
         if (error instanceof Error && error.message.includes("401")) return false;
         return failureCount < 2;
       },
@@ -85,8 +85,8 @@ const persister = createSyncStoragePersister({
   throttleTime: 1000,
 });
 
-// لا نُحمّل بيانات عمرها أكثر من 5 دقائق عند فتح التطبيق
-const PERSIST_MAX_AGE = 1000 * 60 * 5; // 5 دقائق
+// الاحتفاظ ببيانات الكاش لمدة 24 ساعة كاملة لتسريع الدخول
+const PERSIST_MAX_AGE = 1000 * 60 * 60 * 24;
 
 function ProtectedRoute({ children, requireAdmin = false }: { children: React.ReactNode; requireAdmin?: boolean }) {
   const { user, isLoading } = useAuth();
@@ -96,7 +96,7 @@ function ProtectedRoute({ children, requireAdmin = false }: { children: React.Re
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background">
         <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-        <p className="text-muted-foreground font-medium animate-pulse">جاري تسجيل الدخول...</p>
+        <p className="text-muted-foreground font-medium animate-pulse">جاري التحميل...</p>
       </div>
     );
   }
@@ -116,6 +116,48 @@ function ProtectedRoute({ children, requireAdmin = false }: { children: React.Re
   return <>{children}</>;
 }
 
+function AdminApp() {
+  return (
+    <AdminLayout>
+      <Switch>
+        <Route path="/admin/keys/:id" component={KeyDetailPage} />
+        <Route path="/admin/keys" component={KeysPage} />
+        <Route path="/admin/users/:id" component={UserDetailPage} />
+        <Route path="/admin/users" component={UsersPage} />
+        <Route path="/admin/admins" component={AdminsPage} />
+        <Route path="/admin/settings" component={AdminSettingsPage} />
+        <Route>
+          <Redirect to="/admin/keys" />
+        </Route>
+      </Switch>
+    </AdminLayout>
+  );
+}
+
+function UserApp() {
+  return (
+    <UserLayout>
+      <Switch>
+        <Route path="/dashboard" component={DashboardPage} />
+        <Route path="/conversations" component={ConversationsPage} />
+        <Route path="/products" component={ProductsPage} />
+        <Route path="/coupons" component={CouponsPage} />
+        <Route path="/business" component={BusinessPage} />
+        <Route path="/knowledge" component={KnowledgePage} />
+        <Route path="/broadcast" component={BroadcastPage} />
+        <Route path="/delivery" component={DeliveryPage} />
+        <Route path="/orders" component={OrdersPage} />
+        <Route path="/returns" component={ReturnsPage} />
+        <Route path="/customers" component={CustomersPage} />
+        <Route path="/settings" component={SettingsPage} />
+        <Route path="/analytics" component={AnalyticsPage} />
+        <Route>
+          <Redirect to="/dashboard" />
+        </Route>
+      </Switch>
+    </UserLayout>
+  );
+}
 
 function AppRoutes() {
   const { user, isLoading } = useAuth();
@@ -127,145 +169,29 @@ function AppRoutes() {
     </div>
   );
 
-  if (location === "/login" && user) {
-    return <Redirect to={user.role === "admin" ? "/admin/keys" : "/dashboard"} />;
+  if (location === "/login") {
+    if (user) {
+      return <Redirect to={user.role === "admin" ? "/admin/keys" : "/dashboard"} />;
+    }
+    return <Login />;
+  }
+
+  if (!user) {
+    return <Redirect to="/login" />;
+  }
+
+  if (user.role === "admin") {
+    return (
+      <ProtectedRoute requireAdmin>
+        <AdminApp />
+      </ProtectedRoute>
+    );
   }
 
   return (
-    <Switch>
-      <Route path="/login" component={Login} />
-
-      <Route path="/admin/keys/:id">
-        {(params) => (
-          <ProtectedRoute requireAdmin>
-            <AdminLayout overrideTitle="تفاصيل المفتاح">
-              <KeyDetailPage />
-            </AdminLayout>
-          </ProtectedRoute>
-        )}
-      </Route>
-
-      <Route path="/admin/keys">
-        <ProtectedRoute requireAdmin>
-          <AdminLayout><KeysPage /></AdminLayout>
-        </ProtectedRoute>
-      </Route>
-
-      <Route path="/admin/users/:id">
-        {(params) => (
-          <ProtectedRoute requireAdmin>
-            <AdminLayout overrideTitle="تفاصيل المستخدم">
-              <UserDetailPage />
-            </AdminLayout>
-          </ProtectedRoute>
-        )}
-      </Route>
-
-      <Route path="/admin/users">
-        <ProtectedRoute requireAdmin>
-          <AdminLayout><UsersPage /></AdminLayout>
-        </ProtectedRoute>
-      </Route>
-
-      <Route path="/admin/admins">
-        <ProtectedRoute requireAdmin>
-          <AdminLayout><AdminsPage /></AdminLayout>
-        </ProtectedRoute>
-      </Route>
-
-      <Route path="/admin/settings">
-        <ProtectedRoute requireAdmin>
-          <AdminLayout><AdminSettingsPage /></AdminLayout>
-        </ProtectedRoute>
-      </Route>
-
-
-      <Route path="/dashboard">
-        <ProtectedRoute>
-          <UserLayout><DashboardPage /></UserLayout>
-        </ProtectedRoute>
-      </Route>
-
-      <Route path="/conversations">
-        <ProtectedRoute>
-          <UserLayout><ConversationsPage /></UserLayout>
-        </ProtectedRoute>
-      </Route>
-
-      <Route path="/products">
-        <ProtectedRoute>
-          <UserLayout><ProductsPage /></UserLayout>
-        </ProtectedRoute>
-      </Route>
-
-      <Route path="/coupons">
-        <ProtectedRoute>
-          <UserLayout><CouponsPage /></UserLayout>
-        </ProtectedRoute>
-      </Route>
-
-      <Route path="/business">
-        <ProtectedRoute>
-          <UserLayout><BusinessPage /></UserLayout>
-        </ProtectedRoute>
-      </Route>
-
-      <Route path="/knowledge">
-        <ProtectedRoute>
-          <UserLayout><KnowledgePage /></UserLayout>
-        </ProtectedRoute>
-      </Route>
-
-      <Route path="/broadcast">
-        <ProtectedRoute>
-          <UserLayout><BroadcastPage /></UserLayout>
-        </ProtectedRoute>
-      </Route>
-
-      <Route path="/delivery">
-        <ProtectedRoute>
-          <UserLayout><DeliveryPage /></UserLayout>
-        </ProtectedRoute>
-      </Route>
-
-      <Route path="/orders">
-        <ProtectedRoute>
-          <UserLayout><OrdersPage /></UserLayout>
-        </ProtectedRoute>
-      </Route>
-
-      <Route path="/returns">
-        <ProtectedRoute>
-          <UserLayout><ReturnsPage /></UserLayout>
-        </ProtectedRoute>
-      </Route>
-
-      <Route path="/customers">
-        <ProtectedRoute>
-          <UserLayout><CustomersPage /></UserLayout>
-        </ProtectedRoute>
-      </Route>
-
-      <Route path="/settings">
-        <ProtectedRoute>
-          <UserLayout><SettingsPage /></UserLayout>
-        </ProtectedRoute>
-      </Route>
-
-      <Route path="/analytics">
-        <ProtectedRoute>
-          <UserLayout><AnalyticsPage /></UserLayout>
-        </ProtectedRoute>
-      </Route>
-
-      <Route path="/">
-        {user ? <Redirect to={user.role === "admin" ? "/admin/keys" : "/dashboard"} /> : <Redirect to="/login" />}
-      </Route>
-
-      <Route>
-        {user ? <Redirect to={user.role === "admin" ? "/admin/keys" : "/dashboard"} /> : <Redirect to="/login" />}
-      </Route>
-    </Switch>
+    <ProtectedRoute>
+      <UserApp />
+    </ProtectedRoute>
   );
 }
 
