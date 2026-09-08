@@ -88,14 +88,54 @@ const persister = createSyncStoragePersister({
 // الاحتفاظ ببيانات الكاش لمدة 24 ساعة كاملة لتسريع الدخول
 const PERSIST_MAX_AGE = 1000 * 60 * 60 * 24;
 
+function getEffectiveUser(user: any): any {
+  if (user) return user;
+  if (typeof window === "undefined") return null;
+
+  // إذا قام المستخدم بالضغط الصريح على "تسجيل الخروج"، فقط حينها يُسمح بظهور صفحة الدخول
+  if (localStorage.getItem("auth_explicit_logout") === "true") {
+    return null;
+  }
+
+  // 1. فحص كاش المستخدم الأساسي
+  try {
+    const raw = localStorage.getItem("auth_user_cache");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.id) return parsed;
+    }
+  } catch {}
+
+  // 2. سلوك واتساب: إذا لم يقم بتسجيل الخروج الصريح، وكان الجهاز غير متصل بالنت أو توجد جلسة سابقة:
+  const hasPersistent = localStorage.getItem("auth_persistent_session") === "true";
+  const hasCreds = !!localStorage.getItem("auth_credentials_cache");
+  const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+
+  if (hasPersistent || hasCreds || isOffline) {
+    const role = (localStorage.getItem("auth_account_role") as "admin" | "user") || "user";
+    const recovered = {
+      id: role === "admin" ? 1 : 2,
+      name: localStorage.getItem("auth_user_name") || (role === "admin" ? "مدير النظام" : "المستخدم"),
+      email: localStorage.getItem("auth_user_email") || (role === "admin" ? "admin@demo.com" : "user@demo.com"),
+      role,
+      avatar: role === "admin" ? "A" : "U",
+    };
+    try {
+      localStorage.setItem("auth_user_cache", JSON.stringify(recovered));
+    } catch {}
+    return recovered;
+  }
+
+  return null;
+}
+
 function ProtectedRoute({ children, requireAdmin = false }: { children: React.ReactNode; requireAdmin?: boolean }) {
   const { user, isLoading } = useAuth();
   const [location] = useLocation();
 
-  // فحص مباشر للكاش لمنع أي تحويل خاطئ لصفحة الدخول أثناء العمل بدون إنترنت
-  const hasCachedUser = typeof window !== "undefined" && !!localStorage.getItem("auth_user_cache");
+  const effectiveUser = getEffectiveUser(user);
 
-  if (isLoading && !hasCachedUser) {
+  if (isLoading && !effectiveUser) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background">
         <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
@@ -103,8 +143,6 @@ function ProtectedRoute({ children, requireAdmin = false }: { children: React.Re
       </div>
     );
   }
-
-  const effectiveUser = user || (hasCachedUser ? JSON.parse(localStorage.getItem("auth_user_cache")!) : null);
 
   if (!effectiveUser) {
     return <Redirect to="/login" />;
@@ -168,18 +206,15 @@ function AppRoutes() {
   const { user, isLoading } = useAuth();
   const [location] = useLocation();
 
-  // فحص مباشر للكاش: إذا سبق للمستخدم الدخول، صفحة الدخول تكون مستحيلة الظهور (مثل واتساب)
-  const hasCachedUser = typeof window !== "undefined" && !!localStorage.getItem("auth_user_cache");
+  const effectiveUser = getEffectiveUser(user);
 
-  if (isLoading && !hasCachedUser) return (
+  if (isLoading && !effectiveUser) return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
     </div>
   );
 
-  const effectiveUser = user || (hasCachedUser ? JSON.parse(localStorage.getItem("auth_user_cache")!) : null);
-
-  // إذا كان المستخدم مسجلاً، يُحظر تماماً الوصول لصفحة الدخول ويتم تحويله فوراً
+  // إذا كان المستخدم مسجلاً أو في وضع الأوفلاين، يُحظر تماماً الوصول لصفحة الدخول ويتم تحويله فوراً إلى لوحة التحكم
   if (location === "/login") {
     if (effectiveUser) {
       return <Redirect to={effectiveUser.role === "admin" ? "/admin/keys" : "/dashboard"} />;

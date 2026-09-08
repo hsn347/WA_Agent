@@ -19,14 +19,64 @@ interface AuthContextType {
 
 export const AuthContext = createContext<AuthContextType | null>(null);
 
+const EXPLICIT_LOGOUT_KEY = "auth_explicit_logout";
 const USER_CACHE_KEY = "auth_user_cache";
 const CREDS_CACHE_KEY = "auth_credentials_cache";
+const PERSISTENT_SESSION_KEY = "auth_persistent_session";
+const ROLE_KEY = "auth_account_role";
+const USERNAME_KEY = "auth_user_name";
+const EMAIL_KEY = "auth_user_email";
 
 function getCachedUser(): User | null {
   try {
+    // إذا قام المستخدم بالضغط الصريح على "تسجيل الخروج"، نحترم رغبته ونطلب منه تسجيل الدخول
+    if (localStorage.getItem(EXPLICIT_LOGOUT_KEY) === "true") {
+      return null;
+    }
+
+    // 1. القراءة من الكاش الأساسي للمستخدم
     const raw = localStorage.getItem(USER_CACHE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as User;
+    if (raw) {
+      const parsed = JSON.parse(raw) as User;
+      if (parsed?.id && parsed?.role) return parsed;
+    }
+
+    // 2. الاسترجاع الذكي (Smart Auto-Recovery):
+    // مثل واتساب تماماً، إذا كان الجهاز بدون نت أو هناك جلسة سابقة محفوظة أو بيانات كاش، نستعيد المستخدم فوراً
+    const hasCreds = !!localStorage.getItem(CREDS_CACHE_KEY);
+    const hasPersistent = localStorage.getItem(PERSISTENT_SESSION_KEY) === "true";
+    const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+
+    // فحص ما إذا كان هناك أي كاش سابق للمتجر في المتصفح
+    let hasAnyStoreCache = false;
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k?.startsWith("apiCache:/") || k?.includes("REACT_QUERY")) {
+        hasAnyStoreCache = true;
+        break;
+      }
+    }
+
+    if (hasCreds || hasPersistent || hasAnyStoreCache || isOffline) {
+      const savedRole = (localStorage.getItem(ROLE_KEY) as "admin" | "user") || "user";
+      const savedName = localStorage.getItem(USERNAME_KEY) || (savedRole === "admin" ? "مدير النظام" : "المستخدم");
+      const savedEmail = localStorage.getItem(EMAIL_KEY) || (savedRole === "admin" ? "admin@demo.com" : "user@demo.com");
+
+      const recovered: User = {
+        id: savedRole === "admin" ? 1 : 2,
+        name: savedName,
+        email: savedEmail,
+        role: savedRole,
+        avatar: savedRole === "admin" ? "A" : "U",
+      };
+
+      // إعادة تثبيتها في الكاش لضمان بقائها
+      localStorage.setItem(USER_CACHE_KEY, JSON.stringify(recovered));
+      localStorage.setItem(PERSISTENT_SESSION_KEY, "true");
+      return recovered;
+    }
+
+    return null;
   } catch {
     return null;
   }
@@ -35,9 +85,18 @@ function getCachedUser(): User | null {
 function setCachedUser(user: User | null) {
   try {
     if (user) {
+      localStorage.removeItem(EXPLICIT_LOGOUT_KEY);
       localStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
+      localStorage.setItem(PERSISTENT_SESSION_KEY, "true");
+      localStorage.setItem(ROLE_KEY, user.role);
+      localStorage.setItem(USERNAME_KEY, user.name);
+      localStorage.setItem(EMAIL_KEY, user.email);
     } else {
       localStorage.removeItem(USER_CACHE_KEY);
+      localStorage.removeItem(PERSISTENT_SESSION_KEY);
+      localStorage.removeItem(ROLE_KEY);
+      localStorage.removeItem(USERNAME_KEY);
+      localStorage.removeItem(EMAIL_KEY);
     }
   } catch {}
 }
@@ -194,6 +253,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // The ONLY place where the user session is wiped is when they explicitly click logout!
   const logout = () => {
     api.auth.logout().catch(() => {});
+    localStorage.setItem(EXPLICIT_LOGOUT_KEY, "true");
     setUser(null);
     setCachedUser(null);
     setCachedCredentials(null);

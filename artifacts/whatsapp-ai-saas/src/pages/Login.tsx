@@ -19,12 +19,24 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // إذا كان المستخدم مسجلاً مسبقاً (في الكاش أو الجلسة)، نقله فوراً إلى لوحة التحكم مثل واتساب
+  // إذا كان المستخدم مسجلاً مسبقاً أو في وضع الأوفلاين، نقله فوراً إلى لوحة التحكم مثل واتساب
   useEffect(() => {
+    const isExplicitLogout = localStorage.getItem("auth_explicit_logout") === "true";
     if (user) {
       setLocation(user.role === "admin" ? "/admin/keys" : "/dashboard");
+    } else if (!isExplicitLogout) {
+      // فحص أي مؤشر للجلسة أو وضع عدم الاتصال (أوفلاين)
+      const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+      const hasSession = !!localStorage.getItem("auth_user_cache") ||
+        !!localStorage.getItem("auth_persistent_session") ||
+        isOffline;
+
+      if (hasSession) {
+        const role = localStorage.getItem("auth_account_role") || (email.toLowerCase().includes("admin") ? "admin" : "user");
+        setLocation(role === "admin" ? "/admin/keys" : "/dashboard");
+      }
     }
-  }, [user, setLocation]);
+  }, [user, setLocation, email]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +45,7 @@ export default function Login() {
     try {
       const success = await login(email, password);
       if (success) {
+        localStorage.removeItem("auth_explicit_logout");
         // تحديد الوجهة فوراً بدون أي طلب شبكة إضافي لضمان العمل أوفلاين وسرعة 0ms
         const cached = localStorage.getItem("auth_user_cache");
         const parsed = cached ? JSON.parse(cached) : null;

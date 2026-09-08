@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v5';
 const STATIC_CACHE = `wakeel-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `wakeel-dynamic-${CACHE_VERSION}`;
 const API_CACHE = `wakeel-api-${CACHE_VERSION}`;
@@ -36,14 +36,17 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// ─── Activate: clean up old caches ───────────────────────────────────────────
+// ─── Activate: clean up all old caches completely ─────────────────────────────
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames
           .filter((name) => ![STATIC_CACHE, DYNAMIC_CACHE, API_CACHE].includes(name))
-          .map((name) => caches.delete(name))
+          .map((name) => {
+            console.log('[SW] Purging stale cache:', name);
+            return caches.delete(name);
+          })
       );
     })
   );
