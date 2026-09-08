@@ -92,7 +92,10 @@ function ProtectedRoute({ children, requireAdmin = false }: { children: React.Re
   const { user, isLoading } = useAuth();
   const [location] = useLocation();
 
-  if (isLoading) {
+  // فحص مباشر للكاش لمنع أي تحويل خاطئ لصفحة الدخول أثناء العمل بدون إنترنت
+  const hasCachedUser = typeof window !== "undefined" && !!localStorage.getItem("auth_user_cache");
+
+  if (isLoading && !hasCachedUser) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background">
         <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
@@ -101,15 +104,17 @@ function ProtectedRoute({ children, requireAdmin = false }: { children: React.Re
     );
   }
 
-  if (!user) {
+  const effectiveUser = user || (hasCachedUser ? JSON.parse(localStorage.getItem("auth_user_cache")!) : null);
+
+  if (!effectiveUser) {
     return <Redirect to="/login" />;
   }
 
-  if (requireAdmin && user.role !== "admin") {
+  if (requireAdmin && effectiveUser.role !== "admin") {
     return <Redirect to="/dashboard" />;
   }
 
-  if (!requireAdmin && user.role === "admin" && location === "/dashboard") {
+  if (!requireAdmin && effectiveUser.role === "admin" && location === "/dashboard") {
     return <Redirect to="/admin/keys" />;
   }
 
@@ -163,24 +168,30 @@ function AppRoutes() {
   const { user, isLoading } = useAuth();
   const [location] = useLocation();
 
-  if (isLoading) return (
+  // فحص مباشر للكاش: إذا سبق للمستخدم الدخول، صفحة الدخول تكون مستحيلة الظهور (مثل واتساب)
+  const hasCachedUser = typeof window !== "undefined" && !!localStorage.getItem("auth_user_cache");
+
+  if (isLoading && !hasCachedUser) return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
     </div>
   );
 
+  const effectiveUser = user || (hasCachedUser ? JSON.parse(localStorage.getItem("auth_user_cache")!) : null);
+
+  // إذا كان المستخدم مسجلاً، يُحظر تماماً الوصول لصفحة الدخول ويتم تحويله فوراً
   if (location === "/login") {
-    if (user) {
-      return <Redirect to={user.role === "admin" ? "/admin/keys" : "/dashboard"} />;
+    if (effectiveUser) {
+      return <Redirect to={effectiveUser.role === "admin" ? "/admin/keys" : "/dashboard"} />;
     }
     return <Login />;
   }
 
-  if (!user) {
+  if (!effectiveUser) {
     return <Redirect to="/login" />;
   }
 
-  if (user.role === "admin") {
+  if (effectiveUser.role === "admin") {
     return (
       <ProtectedRoute requireAdmin>
         <AdminApp />

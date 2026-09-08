@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { Bot, MessageCircle, TrendingUp, Users, Zap, Eye, EyeOff } from "lucide-react";
@@ -11,13 +11,20 @@ const features = [
 ];
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const [, setLocation] = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // إذا كان المستخدم مسجلاً مسبقاً (في الكاش أو الجلسة)، نقله فوراً إلى لوحة التحكم مثل واتساب
+  useEffect(() => {
+    if (user) {
+      setLocation(user.role === "admin" ? "/admin/keys" : "/dashboard");
+    }
+  }, [user, setLocation]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,8 +33,11 @@ export default function Login() {
     try {
       const success = await login(email, password);
       if (success) {
-        const me = await fetch("https://new-dream1-1.onrender.com/api/auth/me", { credentials: "include" }).then(r => r.json()) as { role?: string } | null;
-        setLocation(me?.role === "admin" ? "/admin/keys" : "/dashboard");
+        // تحديد الوجهة فوراً بدون أي طلب شبكة إضافي لضمان العمل أوفلاين وسرعة 0ms
+        const cached = localStorage.getItem("auth_user_cache");
+        const parsed = cached ? JSON.parse(cached) : null;
+        const isAdmin = parsed?.role === "admin" || email.toLowerCase().includes("admin");
+        setLocation(isAdmin ? "/admin/keys" : "/dashboard");
       } else {
         setError("البريد الإلكتروني أو كلمة المرور غير صحيحة");
       }

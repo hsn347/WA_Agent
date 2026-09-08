@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Bell, ChevronDown, X, Sun, Moon, BellRing, BellOff } from "lucide-react";
+import { Bell, ChevronDown, X, Sun, Moon, BellRing, BellOff, WifiOff } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
 import { api, type AppNotification } from "@/lib/api";
@@ -277,10 +277,33 @@ function PushButton() {
 
 export default function TopBar({ title }: TopBarProps) {
   const { user, logout } = useAuth();
+  const [isOnline, setIsOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   return (
     <header className="h-14 bg-card border-b border-border flex items-center justify-between px-4 md:px-6 sticky top-0 z-20">
-      <h1 className="font-bold text-foreground text-base md:text-lg">{title}</h1>
+      <div className="flex items-center gap-3">
+        <h1 className="font-bold text-foreground text-base md:text-lg">{title}</h1>
+        {!isOnline && (
+          <span
+            data-testid="badge-offline"
+            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+          >
+            <WifiOff className="w-3.5 h-3.5 animate-pulse" />
+            غير متصل بالإنترنت
+          </span>
+        )}
+      </div>
       <div className="flex items-center gap-2">
         <ThemeToggle />
         <PushButton />

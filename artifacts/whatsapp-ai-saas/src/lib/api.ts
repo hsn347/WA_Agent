@@ -107,6 +107,12 @@ async function apiFetch<T>(path: string, options?: RequestInit, bypassCache = fa
 
   if (isGet && cacheKey) {
     const cached = getApiCache<T>(path);
+
+    // مسار سريع أوفلاين: إذا كان الجهاز غير متصل بالإنترنت وهناك بيانات محفوظة، نرجعها فوراً بدون محاولة اتصال فاشلة
+    if (typeof navigator !== "undefined" && !navigator.onLine && cached) {
+      return cached;
+    }
+
     const mem = inMemoryCache.get(cacheKey);
 
     // If cache is fresh, return immediately without network call
@@ -115,31 +121,44 @@ async function apiFetch<T>(path: string, options?: RequestInit, bypassCache = fa
     }
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    ...options,
-  });
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      ...options,
+    });
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: res.statusText }));
-    const error = new Error((err as { message?: string }).message || res.statusText);
-    (error as any).status = res.status;
-    throw error;
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: res.statusText }));
+      const error = new Error((err as { message?: string }).message || res.statusText);
+      (error as any).status = res.status;
+      throw error;
+    }
+
+    if (res.status === 204) return undefined as unknown as T;
+
+    const data = await res.json();
+
+    if (isGet && cacheKey) {
+      setApiCache(path, data);
+    } else if (!isGet) {
+      // Smart cache invalidation: only clear caches related to the mutated endpoint
+      invalidateRelatedCache(path);
+    }
+
+    return data as T;
+  } catch (err: any) {
+    // سلوك واتساب الذكي: في حال انقطاع الإنترنت أو بطء الشبكة أو نوم سيرفر Render،
+    // نُعيد البيانات السابقة المخزنة محلياً فوراً حتى لا تتوقف الواجهة أبداً
+    if (isGet) {
+      const fallbackCached = getApiCache<T>(path);
+      if (fallbackCached) {
+        console.warn(`[API] Network error on ${path}. Serving cached data (offline mode).`);
+        return fallbackCached;
+      }
+    }
+    throw err;
   }
-
-  if (res.status === 204) return undefined as unknown as T;
-
-  const data = await res.json();
-
-  if (isGet && cacheKey) {
-    setApiCache(path, data);
-  } else if (!isGet) {
-    // Smart cache invalidation: only clear caches related to the mutated endpoint
-    invalidateRelatedCache(path);
-  }
-
-  return data as T;
 }
 
 export const api = {
