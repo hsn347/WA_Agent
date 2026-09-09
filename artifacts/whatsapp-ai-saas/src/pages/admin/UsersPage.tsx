@@ -49,6 +49,21 @@ export function getSubscriptionInfo(expiresAt?: string | null) {
   };
 }
 
+export function formatArabicDate(dateStr?: string | null) {
+  if (!dateStr) return "غير محدد (مفتوح)";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "غير محدد (مفتوح)";
+    return d.toLocaleDateString("ar-EG", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  } catch {
+    return "غير محدد (مفتوح)";
+  }
+}
+
 const statusConfig = {
   active:   { label: "نشط",   className: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20" },
   pending:  { label: "معلق",  className: "bg-amber-500/15 text-amber-600 dark:text-amber-300 hover:bg-amber-500/20" },
@@ -71,6 +86,7 @@ export default function UsersPage() {
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [subscriptionTarget, setSubscriptionTarget] = useState<AdminUser | null>(null);
+  const [customExpiryDate, setCustomExpiryDate] = useState("");
   const [extending, setExtending] = useState(false);
   const [form, setForm] = useState({
     name: "", email: "", password: "", phone: "",
@@ -84,20 +100,69 @@ export default function UsersPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
+  const openSubscriptionModal = (user: AdminUser) => {
+    setSubscriptionTarget(user);
+    if (user.subscriptionExpiresAt) {
+      try {
+        const d = new Date(user.subscriptionExpiresAt);
+        setCustomExpiryDate(d.toISOString().slice(0, 10));
+      } catch {
+        setCustomExpiryDate("");
+      }
+    } else {
+      const defaultDate = new Date();
+      defaultDate.setMonth(defaultDate.getMonth() + 1);
+      setCustomExpiryDate(defaultDate.toISOString().slice(0, 10));
+    }
+  };
+
   const handleExtendSubscription = async (userId: number, months: number) => {
     setExtending(true);
     try {
       const res = await api.users.extendSubscription(userId, months);
+      const newDateStr = res.subscriptionExpiresAt
+        ? new Date(res.subscriptionExpiresAt).toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric" })
+        : "";
       toast({
-        title: "تم تمديد الاشتراك",
-        description: `تمت إضافة ${months} ${months === 1 ? "شهر" : "أشهر"} بنجاح`,
+        title: "تم تمديد الاشتراك بنجاح ✓",
+        description: `تمت إضافة ${months === 1 ? "شهر كامل" : months === 12 ? "سنة كاملة" : `${months} أشهر`}، تاريخ الانتهاء الجديد: ${newDateStr}`,
       });
       setUsers(prev => prev.map(u => u.id === userId ? { ...u, subscriptionExpiresAt: res.subscriptionExpiresAt } : u));
       setSubscriptionTarget(null);
     } catch (err: unknown) {
       toast({
-        title: "خطأ",
+        title: "خطأ في التمديد",
         description: err instanceof Error ? err.message : "فشل تمديد الاشتراك",
+        variant: "destructive",
+      });
+    } finally {
+      setExtending(false);
+    }
+  };
+
+  const handleSetExactDate = async (userId: number, dateStr: string | null) => {
+    setExtending(true);
+    try {
+      let isoDate: string | null = null;
+      if (dateStr) {
+        const d = new Date(dateStr);
+        d.setHours(23, 59, 59, 999);
+        isoDate = d.toISOString();
+      }
+      const res = await api.users.setSubscription(userId, isoDate);
+      const newDateFormatted = isoDate
+        ? new Date(isoDate).toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric" })
+        : "غير مقيد (مفتوح)";
+      toast({
+        title: "تم تحديث تاريخ الاشتراك بنجاح ✓",
+        description: `تاريخ الانتهاء الجديد: ${newDateFormatted}`,
+      });
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, subscriptionExpiresAt: res.subscriptionExpiresAt } : u));
+      setSubscriptionTarget(null);
+    } catch (err: unknown) {
+      toast({
+        title: "خطأ في تعيين التاريخ",
+        description: err instanceof Error ? err.message : "فشل تعيين تاريخ الاشتراك",
         variant: "destructive",
       });
     } finally {
@@ -277,14 +342,41 @@ export default function UsersPage() {
                     <Badge className={`text-[10px] ${statusConfig[user.status as keyof typeof statusConfig]?.className}`}>
                       {statusConfig[user.status as keyof typeof statusConfig]?.label}
                     </Badge>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-medium ${sub.badgeCls}`}>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${sub.badgeCls}`}>
                       <Clock className="w-2.5 h-2.5" />
                       <span>{sub.label}</span>
                     </span>
                   </div>
                 </div>
 
-                {/* Info row: Chat key + WhatsApp status + Subscription */}
+                {/* Subscription Row in Mobile Card */}
+                <div className="p-2.5 rounded-xl bg-primary/5 border border-primary/20 text-xs flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-primary/15 text-primary flex items-center justify-center shrink-0">
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[10px] text-muted-foreground block font-medium">تاريخ انتهاء الاشتراك:</span>
+                      <span className="font-bold text-foreground truncate block">
+                        {user.subscriptionExpiresAt ? (
+                          formatArabicDate(user.subscriptionExpiresAt)
+                        ) : (
+                          <span className="text-muted-foreground font-normal">غير محدد (مفتوح)</span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    data-testid={`btn-extend-user-${user.id}`}
+                    onClick={(e) => { e.stopPropagation(); openSubscriptionModal(user); }}
+                    className="px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold shrink-0 hover:bg-primary/90 active:scale-95 shadow-xs transition-all"
+                  >
+                    تمديد / ضبط
+                  </button>
+                </div>
+
+                {/* Info row: Chat key + WhatsApp status */}
                 <div className="grid grid-cols-2 gap-2 bg-muted/20 p-2.5 rounded-xl border border-border/50 text-xs">
                   <div>
                     <span className="text-[10px] text-muted-foreground block">نموذج الشات:</span>
@@ -308,15 +400,6 @@ export default function UsersPage() {
                   >
                     <Edit2 className="w-3.5 h-3.5" />
                     <span>عرض التفاصيل</span>
-                  </button>
-                  <button
-                    data-testid={`btn-extend-user-${user.id}`}
-                    onClick={() => setSubscriptionTarget(user)}
-                    className="flex items-center justify-center gap-1 h-9 px-3 rounded-xl border border-primary/20 bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 active:scale-95 transition-all shrink-0"
-                    title="تمديد الاشتراك"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>تمديد</span>
                   </button>
                   <button
                     data-testid={`btn-delete-user-${user.id}`}
@@ -377,19 +460,21 @@ export default function UsersPage() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                      <div className="space-y-1">
                         <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[11px] font-semibold ${sub.badgeCls}`}>
                           <Clock className="w-3 h-3" />
                           <span>{sub.label}</span>
                         </span>
-                        <button
-                          data-testid={`btn-desktop-extend-${user.id}`}
-                          onClick={() => setSubscriptionTarget(user)}
-                          className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-primary/10 text-primary transition-colors"
-                          title="تمديد الاشتراك"
-                        >
-                          <Sparkles className="w-3.5 h-3.5" />
-                        </button>
+                        <p className="text-xs text-foreground font-medium flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-muted-foreground shrink-0" />
+                          <span>
+                            {user.subscriptionExpiresAt ? (
+                              <>ينتهي: <strong className="text-primary font-bold">{formatArabicDate(user.subscriptionExpiresAt)}</strong></>
+                            ) : (
+                              <span className="text-muted-foreground">تاريخ الانتهاء: غير محدد</span>
+                            )}
+                          </span>
+                        </p>
                       </div>
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
@@ -410,15 +495,26 @@ export default function UsersPage() {
                       {new Date(user.createdAt).toLocaleDateString("ar")}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                      <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                        <button
+                          data-testid={`btn-desktop-extend-${user.id}`}
+                          onClick={() => openSubscriptionModal(user)}
+                          className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition-all active:scale-95 shadow-2xs"
+                          title="تمديد أو ضبط تاريخ الاشتراك"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>تمديد الاشتراك</span>
+                        </button>
                         <button data-testid={`btn-edit-user-${user.id}`} onClick={() => setLocation(`/admin/users/${user.id}`)}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors">
-                          <Edit2 className="w-3.5 h-3.5" />
+                          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                          title="عرض تفاصيل المستخدم">
+                          <Edit2 className="w-4 h-4" />
                         </button>
                         <button data-testid={`btn-delete-user-${user.id}`}
                           onClick={() => setDeleteTarget(user)}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-500/20 text-muted-foreground hover:text-red-600 transition-colors">
-                          <Trash2 className="w-3.5 h-3.5" />
+                          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-500/20 text-muted-foreground hover:text-red-600 transition-colors"
+                          title="حذف">
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </td>
@@ -650,17 +746,15 @@ export default function UsersPage() {
                 <Clock className="w-5 h-5" />
               </div>
               <div>
-                <DialogTitle className="text-base sm:text-lg font-bold">تمديد اشتراك المستخدم</DialogTitle>
-                <p className="text-xs text-muted-foreground mt-0.5">{subscriptionTarget?.name}</p>
+                <DialogTitle className="text-base sm:text-lg font-bold">إدارة وتمديد اشتراك المستخدم</DialogTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">{subscriptionTarget?.name} ({subscriptionTarget?.email})</p>
               </div>
             </div>
           </DialogHeader>
 
           {subscriptionTarget && (() => {
             const sub = getSubscriptionInfo(subscriptionTarget.subscriptionExpiresAt);
-            const expDate = subscriptionTarget.subscriptionExpiresAt
-              ? new Date(subscriptionTarget.subscriptionExpiresAt).toLocaleDateString("ar-SA", { year: "numeric", month: "long", day: "numeric" })
-              : "غير محدد";
+            const expFormatted = formatArabicDate(subscriptionTarget.subscriptionExpiresAt);
 
             return (
               <div className="space-y-4 py-2">
@@ -672,41 +766,88 @@ export default function UsersPage() {
                       {sub.label}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">تاريخ الانتهاء:</span>
-                    <span className="font-semibold text-foreground">{expDate}</span>
+                  <div className="flex items-center justify-between text-xs pt-1.5 border-t border-border/50">
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5" />
+                      <span>تاريخ الانتهاء الحالي:</span>
+                    </span>
+                    <span className="font-bold text-foreground">{expFormatted}</span>
                   </div>
                 </div>
 
-                <p className="text-xs font-semibold text-foreground">اختر المدة المراد إضافتها للاشتراك:</p>
-
-                {/* Quick Extension Buttons */}
-                <div className="grid grid-cols-2 gap-2.5">
-                  {[
-                    { months: 1, label: "+ شهر كامل", desc: "إضافة 30 يوماً" },
-                    { months: 3, label: "+ 3 أشهر", desc: "إضافة 90 يوماً" },
-                    { months: 6, label: "+ 6 أشهر", desc: "إضافة 180 يوماً" },
-                    { months: 12, label: "+ سنة كاملة", desc: "إضافة 365 يوماً" },
-                  ].map(({ months, label, desc }) => (
-                    <button
-                      key={months}
-                      onClick={() => handleExtendSubscription(subscriptionTarget.id, months)}
-                      disabled={extending}
-                      className="p-3 rounded-xl border border-border bg-card hover:bg-primary/5 hover:border-primary/40 text-right transition-all active:scale-95 disabled:opacity-50"
-                    >
-                      <p className="text-sm font-bold text-foreground flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-primary" />
-                        <span>{label}</span>
-                      </p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">{desc}</p>
-                    </button>
-                  ))}
+                {/* Option 1: Quick Month Extensions */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-foreground">الخيار 1: تمديد سريع بإضافة أشهر</p>
+                    <span className="text-[10px] text-muted-foreground">يُضاف تلقائياً فوق الصلاحية</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { months: 1, label: "+ شهر كامل", desc: "إضافة 30 يوماً" },
+                      { months: 3, label: "+ 3 أشهر", desc: "إضافة 90 يوماً" },
+                      { months: 6, label: "+ 6 أشهر", desc: "إضافة 180 يوماً" },
+                      { months: 12, label: "+ سنة كاملة", desc: "إضافة 365 يوماً" },
+                    ].map(({ months, label, desc }) => (
+                      <button
+                        key={months}
+                        type="button"
+                        onClick={() => handleExtendSubscription(subscriptionTarget.id, months)}
+                        disabled={extending}
+                        className="p-3 rounded-xl border border-primary/20 bg-primary/5 hover:bg-primary/10 hover:border-primary/40 text-right transition-all active:scale-95 disabled:opacity-50"
+                      >
+                        <p className="text-xs font-bold text-primary flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>{label}</span>
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{desc}</p>
+                      </button>
+                    ))}
+                  </div>
                 </div>
+
+                {/* Option 2: Custom Date Picker */}
+                <div className="space-y-2 pt-2 border-t border-border">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-foreground">الخيار 2: تحديد تاريخ انتهاء مخصص من التقويم</p>
+                    <span className="text-[10px] text-muted-foreground">اختر يوماً محدداً</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="date"
+                      value={customExpiryDate}
+                      onChange={e => setCustomExpiryDate(e.target.value)}
+                      disabled={extending}
+                      className="flex-1 h-11 px-3 rounded-xl border border-input bg-background text-xs font-medium focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleSetExactDate(subscriptionTarget.id, customExpiryDate)}
+                      disabled={extending || !customExpiryDate}
+                      className="h-11 px-4 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-all active:scale-95 disabled:opacity-50 shrink-0"
+                    >
+                      {extending ? "جاري الحفظ..." : "حفظ التاريخ"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Option 3: Reset to unlimited */}
+                {subscriptionTarget.subscriptionExpiresAt && (
+                  <div className="pt-1 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => handleSetExactDate(subscriptionTarget.id, null)}
+                      disabled={extending}
+                      className="text-xs text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-50"
+                    >
+                      إلغاء قيد الصلاحية (جعله مفتوح بدون تاريخ انتهاء)
+                    </button>
+                  </div>
+                )}
 
                 {extending && (
                   <div className="text-center py-2 text-xs text-primary font-medium flex items-center justify-center gap-2">
                     <span className="w-3.5 h-3.5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                    <span>جاري تحديث وتمديد الاشتراك...</span>
+                    <span>جاري حفظ التغييرات وتحديث الصلاحية...</span>
                   </div>
                 )}
               </div>
@@ -719,7 +860,7 @@ export default function UsersPage() {
               disabled={extending}
               className="w-full h-11 rounded-xl border border-border text-muted-foreground hover:bg-muted text-xs sm:text-sm font-semibold transition-all active:scale-95 disabled:opacity-50"
             >
-              إغلاق
+              إلغاء
             </button>
           </DialogFooter>
         </DialogContent>

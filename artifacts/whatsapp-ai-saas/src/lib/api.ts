@@ -188,24 +188,28 @@ export const api = {
   },
 
   users: {
-    list: () => apiFetch<AdminUser[]>("/admin/users"),
+    list: () => apiFetch<AdminUser[]>("/admin/users", undefined, true),
     create: (data: CreateUserPayload) =>
       apiFetch<AdminUser>("/admin/users", { method: "POST", body: JSON.stringify(data) }),
-    get: (id: number) => apiFetch<AdminUser>(`/admin/users/${id}`),
+    get: (id: number) => apiFetch<AdminUser>(`/admin/users/${id}`, undefined, true),
     update: (id: number, data: Record<string, unknown>) =>
       apiFetch<void>(`/admin/users/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     delete: (id: number) =>
       apiFetch<{ ok: boolean }>(`/admin/users/${id}`, { method: "DELETE" }),
-    extendSubscription: (id: number, months: number) =>
-      apiFetch<{ ok: boolean; subscriptionExpiresAt: string | null }>(`/admin/users/${id}/subscription`, {
+    extendSubscription: (id: number, months: number) => {
+      invalidateApiCache("/admin/users");
+      return apiFetch<{ ok: boolean; subscriptionExpiresAt: string | null }>(`/admin/users/${id}/subscription`, {
         method: "POST",
         body: JSON.stringify({ action: "extend", months }),
-      }),
-    setSubscription: (id: number, expiresAt: string | null) =>
-      apiFetch<{ ok: boolean; subscriptionExpiresAt: string | null }>(`/admin/users/${id}/subscription`, {
+      });
+    },
+    setSubscription: (id: number, expiresAt: string | null) => {
+      invalidateApiCache("/admin/users");
+      return apiFetch<{ ok: boolean; subscriptionExpiresAt: string | null }>(`/admin/users/${id}/subscription`, {
         method: "POST",
         body: JSON.stringify({ action: "set", expiresAt }),
-      }),
+      });
+    },
   },
 
   admins: {

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { db } from "@workspace/db";
+import { db, pool } from "@workspace/db";
 import {
   usersTable, whatsappConnectionsTable, userSettingsTable, apiKeysTable, conversationsTable,
   messagesTable, productsTable, couponsTable, businessesTable, ordersTable,
@@ -220,9 +220,22 @@ router.post("/:id/subscription", async (req, res) => {
     return;
   }
 
-  await db.update(usersTable)
-    .set({ subscriptionExpiresAt: newExpiry })
-    .where(eq(usersTable.id, id));
+  try {
+    await db.update(usersTable)
+      .set({ subscriptionExpiresAt: newExpiry })
+      .where(eq(usersTable.id, id));
+  } catch (dbErr: any) {
+    try {
+      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMP;");
+      await db.update(usersTable)
+        .set({ subscriptionExpiresAt: newExpiry })
+        .where(eq(usersTable.id, id));
+    } catch (retryErr: any) {
+      console.error("[Subscription] DB update error:", retryErr);
+      res.status(500).json({ message: "فشل حفظ تاريخ الاشتراك في قاعدة البيانات" });
+      return;
+    }
+  }
 
   res.json({
     ok: true,

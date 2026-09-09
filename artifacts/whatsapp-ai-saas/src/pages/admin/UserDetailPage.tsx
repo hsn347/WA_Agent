@@ -43,6 +43,7 @@ export default function UserDetailPage() {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [extendingMonths, setExtendingMonths] = useState<number | null>(null);
+  const [directDate, setDirectDate] = useState("");
   const { toast } = useToast();
   const [form, setForm] = useState({
     name: "",
@@ -71,6 +72,13 @@ export default function UserDetailPage() {
       chatFallbackKeyIds: parsedFallbacks,
       subscriptionExpiresAt: u.subscriptionExpiresAt ?? "",
     });
+    if (u.subscriptionExpiresAt) {
+      try {
+        setDirectDate(new Date(u.subscriptionExpiresAt).toISOString().slice(0, 10));
+      } catch {
+        setDirectDate("");
+      }
+    }
     setLoading(false);
   };
 
@@ -126,9 +134,38 @@ export default function UserDetailPage() {
       await api.users.setSubscription(user.id, null);
       setUser(u => u ? { ...u, subscriptionExpiresAt: null } : u);
       setForm(p => ({ ...p, subscriptionExpiresAt: "" }));
+      setDirectDate("");
       toast({
         title: "تم تحديث الاشتراك",
         description: "تم إلغاء قيد تاريخ الانتهاء وأصبح الاشتراك مفتوحاً.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "خطأ",
+        description: err.message || "حدث خطأ غير متوقع",
+        variant: "destructive",
+      });
+    } finally {
+      setExtendingMonths(null);
+    }
+  };
+
+  const handleSetDirectDate = async () => {
+    if (!user || !directDate) return;
+    setExtendingMonths(-2);
+    try {
+      const d = new Date(directDate);
+      d.setHours(23, 59, 59, 999);
+      const iso = d.toISOString();
+      const res = await api.users.setSubscription(user.id, iso);
+      setUser(u => u ? { ...u, subscriptionExpiresAt: res.subscriptionExpiresAt } : u);
+      setForm(p => ({ ...p, subscriptionExpiresAt: res.subscriptionExpiresAt ?? "" }));
+      const newDateStr = res.subscriptionExpiresAt
+        ? new Date(res.subscriptionExpiresAt).toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric" })
+        : "";
+      toast({
+        title: "تم تعيين تاريخ الاشتراك بنجاح ✓",
+        description: `تاريخ الانتهاء الجديد: ${newDateStr}`,
       });
     } catch (err: any) {
       toast({
@@ -510,6 +547,31 @@ export default function UserDetailPage() {
                   {extendingMonths === 12 ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                   <span>+ سنة كاملة</span>
                 </button>
+              </div>
+
+              {/* Custom Date Input directly in card */}
+              <div className="pt-2.5 border-t border-border space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-foreground">أو حدد تاريخ انتهاء مخصص من التقويم مباشرة:</span>
+                  <span className="text-[10px] text-muted-foreground">اختر يوماً محدداً</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={directDate}
+                    onChange={e => setDirectDate(e.target.value)}
+                    disabled={extendingMonths !== null}
+                    className="flex-1 h-11 px-3 rounded-xl border border-input bg-background text-xs font-medium focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSetDirectDate}
+                    disabled={extendingMonths !== null || !directDate}
+                    className="h-11 px-4 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-all active:scale-95 disabled:opacity-50 shrink-0"
+                  >
+                    {extendingMonths === -2 ? "جاري الحفظ..." : "حفظ هذا التاريخ"}
+                  </button>
+                </div>
               </div>
 
               {user.subscriptionExpiresAt && (
