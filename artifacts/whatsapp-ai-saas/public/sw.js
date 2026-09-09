@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v5';
+const CACHE_VERSION = 'v6';
 const STATIC_CACHE = `wakeel-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `wakeel-dynamic-${CACHE_VERSION}`;
 const API_CACHE = `wakeel-api-${CACHE_VERSION}`;

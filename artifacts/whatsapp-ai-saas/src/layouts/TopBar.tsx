@@ -282,17 +282,50 @@ export default function TopBar({ title }: TopBarProps) {
   const [isOnline, setIsOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
 
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    let offlineTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const handleOnline = () => {
+      if (offlineTimer) {
+        clearTimeout(offlineTimer);
+        offlineTimer = null;
+      }
+      setIsOnline(true);
+    };
+
+    const handleOffline = () => {
+      // تجنب الذبذبة اللحظية في شبكات الجوال عند تبديل الأبراج أو ضعف الإشارة المؤقت (Debounce لمدة 2.5 ثانية)
+      // تظهر الشارة فقط إذا انقطع النت فعلياً واستمر الانقطاع
+      if (offlineTimer) clearTimeout(offlineTimer);
+      offlineTimer = setTimeout(() => {
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+          setIsOnline(false);
+        }
+      }, 2500);
+    };
+
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
     return () => {
+      if (offlineTimer) clearTimeout(offlineTimer);
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
   }, []);
 
-  const handleOfflineBadgeClick = () => {
+  const handleOfflineBadgeClick = async () => {
+    // التحقق المباشر من الاتصال الفعلي بالسيرفر عند النقر
+    try {
+      const res = await fetch("/manifest.json", { method: "HEAD", cache: "no-store" });
+      if (res.ok) {
+        setIsOnline(true);
+        toast({
+          title: "تم استعادة الاتصال بنجاح ✅",
+          description: "أنت متصل بالإنترنت والتطبيق يعمل بكامل كفاءته.",
+        });
+        return;
+      }
+    } catch {}
+
     toast({
       title: "أنت في وضع عدم الاتصال 📡",
       description: "الإنترنت غير متصل حالياً. يمكنك تصفح البيانات المحفوظة، وسيعاد الاتصال تلقائياً فور عودة الشبكة.",
