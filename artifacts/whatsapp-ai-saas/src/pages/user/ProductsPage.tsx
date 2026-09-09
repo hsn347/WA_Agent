@@ -34,7 +34,13 @@ function ImageUploader({
   productId,
   currentUrl,
   onUploaded,
-}: { productId?: number; currentUrl?: string | null; onUploaded?: (url: string) => void }) {
+  onFileSelected,
+}: {
+  productId?: number;
+  currentUrl?: string | null;
+  onUploaded?: (url: string) => void;
+  onFileSelected?: (file: File | null) => void;
+}) {
   const { toast } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(currentUrl ?? null);
@@ -55,13 +61,20 @@ function ImageUploader({
     reader.onload = async (e) => {
       const dataUrl = e.target?.result as string;
       setPreview(dataUrl);
-      if (!productId) return;
+
+      // If no productId yet (new product), just keep the file for later upload
+      if (!productId) {
+        onFileSelected?.(file);
+        return;
+      }
+
       const base64 = dataUrl.split(",")[1]!;
       setUploading(true);
       try {
         const { imageUrl } = await api.user.products.uploadImage(productId, base64, file.type);
         setPreview(imageUrl);
         onUploaded?.(imageUrl);
+        onFileSelected?.(null); // clear pending after successful upload
         toast({ title: "✓ تم رفع الصورة بنجاح" });
       } catch (err) {
         toast({ title: "فشل رفع الصورة", description: (err as Error).message, variant: "destructive" });
@@ -127,10 +140,16 @@ function ImageUploader({
           <X className="w-3 h-3" />إزالة الصورة
         </button>
       )}
-      {!productId && (
-        <p className="mt-1.5 text-[11px] text-amber-600 bg-amber-500/10 border border-amber-100 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5">
+      {!productId && preview && (
+        <p className="mt-1.5 text-[11px] text-emerald-700 bg-emerald-500/10 border border-emerald-200 rounded-lg px-2.5 py-1.5 flex items-center gap-1.5">
           <Info className="w-3 h-3 shrink-0" />
-          احفظ المنتج أولاً لتتمكن من رفع الصورة
+          سيتم رفع الصورة تلقائياً عند حفظ المنتج
+        </p>
+      )}
+      {!productId && !preview && (
+        <p className="mt-1.5 text-[11px] text-muted-foreground/70 flex items-center gap-1.5">
+          <Info className="w-3 h-3 shrink-0" />
+          يمكنك اختيار صورة الآن وسترفع عند الحفظ
         </p>
       )}
     </div>
@@ -152,7 +171,7 @@ const inputCls = "w-full h-11 px-4 rounded-xl border border-input bg-background 
 const selectCls = "w-full h-11 px-4 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring cursor-pointer";
 
 function ProductForm({
-  initial, onSave, onCancel, title, saving, savedProduct, globalCurrency,
+  initial, onSave, onCancel, title, saving, savedProduct, globalCurrency, onPendingFile,
 }: {
   initial: FormState;
   onSave: (f: FormState) => void;
@@ -161,6 +180,7 @@ function ProductForm({
   saving?: boolean;
   savedProduct?: Product | null;
   globalCurrency: string;
+  onPendingFile?: (file: File | null) => void;
 }) {
   const [form, setForm] = useState<FormState>(initial);
   const [product, setProduct] = useState<Product | null>(savedProduct ?? null);
@@ -188,6 +208,7 @@ function ProductForm({
             productId={product?.id}
             currentUrl={product?.imageUrl}
             onUploaded={(url) => setProduct((p) => p ? { ...p, imageUrl: url } : null)}
+            onFileSelected={onPendingFile}
           />
 
           <div className="grid gap-5">
@@ -543,6 +564,8 @@ export default function ProductsPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const pendingImageFileRef = useRef<File | null>(null);
+
   const handleAddSave = async (f: FormState) => {
     setSaving(true);
     try {
@@ -553,10 +576,32 @@ export default function ProductsPage() {
         currency: globalCurrency, status: f.status,
       };
       const created = await api.user.products.create(payload);
+
+      // Upload pending image immediately after product creation
+      if (pendingImageFileRef.current) {
+        try {
+          const file = pendingImageFileRef.current;
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target?.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+          const base64 = dataUrl.split(",")[1]!;
+          const { imageUrl } = await api.user.products.uploadImage(created.id, base64, file.type);
+          created.imageUrl = imageUrl;
+          pendingImageFileRef.current = null;
+          toast({ title: "✓ تمت إضافة المنتج والصورة بنجاح" });
+        } catch {
+          toast({ title: "✓ تمت إضافة المنتج", description: "تعذّر رفع الصورة، يمكنك إعادة المحاولة من التعديل", variant: "default" });
+        }
+      } else {
+        toast({ title: "✓ تمت إضافة المنتج بنجاح" });
+      }
+
       setShowAdd(false);
       setJustCreated(created);
       setEditTarget(created);
-      toast({ title: "تم إضافة المنتج — يمكنك الآن رفع الصورة" });
       fetchProducts({ p: 1 });
       setPage(1);
     } catch (err) {
@@ -654,7 +699,17 @@ export default function ProductsPage() {
   };
 
   if (showAdd) {
-    return <ProductForm initial={emptyForm} onSave={handleAddSave} onCancel={() => setShowAdd(false)} title="إضافة منتج جديد" saving={saving} globalCurrency={globalCurrency} />;
+    return (
+      <ProductForm
+        initial={emptyForm}
+        onSave={handleAddSave}
+        onCancel={() => { setShowAdd(false); pendingImageFileRef.current = null; }}
+        title="إضافة منتج جديد"
+        saving={saving}
+        globalCurrency={globalCurrency}
+        onPendingFile={(file) => { pendingImageFileRef.current = file; }}
+      />
+    );
   }
   if (editTarget) {
     return (
