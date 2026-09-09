@@ -600,8 +600,6 @@ export default function ProductsPage() {
       }
 
       setShowAdd(false);
-      setJustCreated(created);
-      setEditTarget(created);
       fetchProducts({ p: 1 });
       setPage(1);
     } catch (err) {
