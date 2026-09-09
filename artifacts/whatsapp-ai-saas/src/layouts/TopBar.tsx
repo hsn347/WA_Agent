@@ -5,6 +5,7 @@ import { useLocation } from "wouter";
 import { api, type AppNotification } from "@/lib/api";
 import { useTheme } from "@/contexts/ThemeContext";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -128,10 +129,10 @@ function NotificationPanel() {
   };
 
   return (
-    <div ref={panelRef} className="relative">
+    <div ref={panelRef} className="relative shrink-0">
       <button
         onClick={handleToggle}
-        className="relative w-9 h-9 flex items-center justify-center rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+        className="relative w-9 h-9 shrink-0 flex items-center justify-center rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
         title="الإشعارات"
       >
         <Bell className="w-5 h-5" />
@@ -232,7 +233,7 @@ function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+      className="w-9 h-9 shrink-0 flex items-center justify-center rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
       title={theme === "dark" ? "الوضع النهاري" : "الوضع الليلي"}
     >
       {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -257,7 +258,7 @@ function PushButton() {
     <button
       onClick={handleClick}
       disabled={isLoading}
-      className={`w-9 h-9 flex items-center justify-center rounded-lg transition-colors ${
+      className={`w-9 h-9 shrink-0 flex items-center justify-center rounded-lg transition-colors ${
         isGranted
           ? "text-primary bg-primary/10 hover:bg-primary/20"
           : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -277,6 +278,7 @@ function PushButton() {
 
 export default function TopBar({ title }: TopBarProps) {
   const { user, logout } = useAuth();
+  const { toast } = useToast();
   const [isOnline, setIsOnline] = useState(typeof navigator !== "undefined" ? navigator.onLine : true);
 
   useEffect(() => {
@@ -290,21 +292,57 @@ export default function TopBar({ title }: TopBarProps) {
     };
   }, []);
 
+  const handleOfflineBadgeClick = () => {
+    toast({
+      title: "أنت في وضع عدم الاتصال 📡",
+      description: "الإنترنت غير متصل حالياً. يمكنك تصفح البيانات المحفوظة، وسيعاد الاتصال تلقائياً فور عودة الشبكة.",
+    });
+  };
+
   return (
-    <header className="h-14 bg-card border-b border-border flex items-center justify-between px-4 md:px-6 sticky top-0 z-20">
-      <div className="flex items-center gap-3">
-        <h1 className="font-bold text-foreground text-base md:text-lg">{title}</h1>
+    <header className="relative h-14 max-h-14 bg-card border-b border-border flex items-center justify-between px-3 sm:px-4 md:px-6 sticky top-0 z-20 shrink-0 select-none">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 me-2">
+        <h1 className="font-bold text-foreground text-sm sm:text-base md:text-lg truncate leading-none">
+          {title}
+        </h1>
         {!isOnline && (
-          <span
-            data-testid="badge-offline"
-            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
-          >
-            <WifiOff className="w-3.5 h-3.5 animate-pulse" />
-            غير متصل بالإنترنت
-          </span>
+          <>
+            {/* شارة للشاشات المتوسطة والكبيرة */}
+            <button
+              type="button"
+              onClick={handleOfflineBadgeClick}
+              data-testid="badge-offline"
+              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 whitespace-nowrap shrink-0 hover:bg-amber-500/20 transition-all cursor-pointer shadow-sm active:scale-95"
+              title="اضغط للتفاصيل — وضع عدم الاتصال"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+              </span>
+              <WifiOff className="w-3.5 h-3.5" />
+              <span>غير متصل بالإنترنت</span>
+            </button>
+
+            {/* شارة أنيقة ومضغوطة جداً للجوال لا تكسر التقسيم أو الارتفاع أبداً */}
+            <button
+              type="button"
+              onClick={handleOfflineBadgeClick}
+              data-testid="badge-offline-mobile"
+              className="sm:hidden inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 shrink-0 whitespace-nowrap hover:bg-amber-500/25 transition-all cursor-pointer active:scale-95 shadow-xs"
+              title="أنت في وضع عدم الاتصال (اضغط للتفاصيل)"
+            >
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500" />
+              </span>
+              <WifiOff className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+              <span>أوفلاين</span>
+            </button>
+          </>
         )}
       </div>
-      <div className="flex items-center gap-2">
+
+      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
         <ThemeToggle />
         <PushButton />
         <NotificationPanel />
@@ -312,13 +350,13 @@ export default function TopBar({ title }: TopBarProps) {
           <DropdownMenuTrigger asChild>
             <button
               data-testid="btn-user-menu"
-              className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-muted transition-colors"
+              className="flex items-center gap-1.5 sm:gap-2 px-1.5 sm:px-2 py-1.5 rounded-lg hover:bg-muted transition-colors shrink-0"
             >
-              <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground">
+              <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground shrink-0">
                 {user?.avatar}
               </div>
-              <span className="hidden sm:block text-sm font-medium text-foreground">{user?.name}</span>
-              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+              <span className="hidden sm:block text-sm font-medium text-foreground max-w-[100px] truncate">{user?.name}</span>
+              <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground shrink-0" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-44">
@@ -331,6 +369,14 @@ export default function TopBar({ title }: TopBarProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* خط إشعاعي رفيع أسفل الهيدر يعطي لمسة جمالية وفيدباك بصري دون أي تأثير على الارتفاع */}
+      {!isOnline && (
+        <div
+          className="absolute bottom-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-amber-500 to-transparent animate-pulse pointer-events-none"
+          aria-hidden="true"
+        />
+      )}
     </header>
   );
 }
