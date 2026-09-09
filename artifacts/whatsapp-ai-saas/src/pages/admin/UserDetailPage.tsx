@@ -109,158 +109,278 @@ export default function UserDetailPage() {
   ];
 
   return (
-    <div className="space-y-5 max-w-4xl">
-      <button data-testid="btn-back-users" onClick={() => setLocation("/admin/users")}
-        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-        <ArrowRight className="w-4 h-4" />العودة للمستخدمين
+    <div className="space-y-4 sm:space-y-5 max-w-4xl pb-10" dir="rtl">
+      {/* Back Button */}
+      <button
+        data-testid="btn-back-users"
+        onClick={() => setLocation("/admin/users")}
+        className="inline-flex items-center gap-2 text-xs sm:text-sm font-medium text-muted-foreground hover:text-foreground px-3 py-1.5 rounded-xl hover:bg-muted transition-colors active:scale-95"
+      >
+        <ArrowRight className="w-4 h-4 rtl:rotate-180" />
+        <span>العودة لقائمة المستخدمين</span>
       </button>
 
-      <div className="bg-card border border-card-border rounded-2xl p-5 shadow-sm">
-        <div className="flex items-start gap-4 flex-wrap">
-          <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-2xl font-bold text-primary shrink-0">
-            {user.name.charAt(0)}
+      {/* User Header Card */}
+      <div className="bg-card border border-card-border rounded-2xl p-4 sm:p-6 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+          {/* Avatar & Basic Info */}
+          <div className="flex items-center gap-3.5 sm:items-start">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 flex items-center justify-center text-xl sm:text-2xl font-bold text-primary shrink-0 shadow-inner">
+              {user.name.charAt(0)}
+            </div>
+            <div className="flex-1 min-w-0 sm:hidden">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-foreground truncate">{user.name}</h2>
+                {saved && <Badge className="text-[10px] bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 shrink-0">تم الحفظ ✓</Badge>}
+              </div>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <Badge className={`text-[10px] px-2 py-0.5 ${statusCfg[user.status]?.cls}`}>
+                  {statusCfg[user.status]?.label}
+                </Badge>
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-medium ${waCl}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${waStatus === "connected" ? "bg-emerald-500" : waStatus === "disconnected" ? "bg-amber-500" : "bg-muted-foreground"}`} />
+                  {waLabel}
+                </span>
+              </div>
+            </div>
           </div>
+
+          {/* Desktop & Tablet Details */}
           <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="hidden sm:flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-xl font-bold text-foreground">{user.name}</h2>
-                <div className="flex items-center gap-3 mt-1 flex-wrap">
-                  <span className="flex items-center gap-1 text-sm text-muted-foreground"><Mail className="w-3.5 h-3.5" />{user.email}</span>
-                  {user.phone && <span className="flex items-center gap-1 text-sm text-muted-foreground"><Phone className="w-3.5 h-3.5" />{user.phone}</span>}
+                <div className="flex items-center gap-2">
+                  <h2 className="text-xl font-bold text-foreground">{user.name}</h2>
+                  {saved && <Badge className="text-xs bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">تم الحفظ ✓</Badge>}
                 </div>
-                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                <div className="flex items-center gap-2.5 mt-1.5 flex-wrap">
                   <Badge className={`text-xs ${statusCfg[user.status]?.cls}`}>{statusCfg[user.status]?.label}</Badge>
-                  <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium ${waCl}`}>
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-xs font-medium ${waCl}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${waStatus === "connected" ? "bg-emerald-500" : waStatus === "disconnected" ? "bg-amber-500" : "bg-muted-foreground"}`} />
                     {waLabel}
                   </span>
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Calendar className="w-3 h-3" />منذ {new Date(user.createdAt).toLocaleDateString("ar")}
+                    <Calendar className="w-3 h-3" />
+                    منذ {new Date(user.createdAt).toLocaleDateString("ar")}
                   </span>
-                  {saved && <Badge className="text-xs bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">تم الحفظ ✓</Badge>}
                 </div>
               </div>
+
+              {/* Desktop Edit Button */}
               <div className="flex items-center gap-2">
                 {!editMode ? (
-                  <button data-testid="btn-edit-user-detail" onClick={() => setEditMode(true)}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-all">
-                    <Edit2 className="w-4 h-4" />تعديل
+                  <button
+                    data-testid="btn-edit-user-detail"
+                    onClick={() => setEditMode(true)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-all active:scale-95"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                    <span>تعديل</span>
                   </button>
                 ) : (
                   <>
-                    <button onClick={() => setEditMode(false)}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-all">
-                      <X className="w-4 h-4" />إلغاء
+                    <button
+                      onClick={() => setEditMode(false)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border text-sm text-muted-foreground hover:bg-muted transition-all active:scale-95"
+                    >
+                      <X className="w-4 h-4" />
+                      <span>إلغاء</span>
                     </button>
-                    <button data-testid="btn-save-user-detail" onClick={handleSave} disabled={saving}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all disabled:opacity-50">
-                      <Save className="w-4 h-4" />{saving ? "…" : "حفظ"}
+                    <button
+                      data-testid="btn-save-user-detail"
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all active:scale-95 disabled:opacity-50"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>{saving ? "…" : "حفظ"}</span>
                     </button>
                   </>
                 )}
               </div>
             </div>
+
+            {/* Contact Pills for Both Mobile & Desktop */}
+            <div className="flex items-center gap-2 sm:gap-4 mt-2 sm:mt-2.5 flex-wrap text-xs sm:text-sm text-muted-foreground">
+              <span className="flex items-center gap-1.5 bg-muted/40 px-2.5 py-1 rounded-lg truncate max-w-full">
+                <Mail className="w-3.5 h-3.5 shrink-0 text-muted-foreground/70" />
+                <span className="truncate dir-ltr text-right">{user.email}</span>
+              </span>
+              {user.phone && (
+                <span className="flex items-center gap-1.5 bg-muted/40 px-2.5 py-1 rounded-lg">
+                  <Phone className="w-3.5 h-3.5 shrink-0 text-muted-foreground/70" />
+                  <span className="dir-ltr">{user.phone}</span>
+                </span>
+              )}
+              <span className="sm:hidden flex items-center gap-1.5 text-[11px] text-muted-foreground/80 py-0.5">
+                <Calendar className="w-3 h-3 shrink-0" />
+                منذ {new Date(user.createdAt).toLocaleDateString("ar")}
+              </span>
+            </div>
+
+            {/* Mobile Action Buttons */}
+            <div className="sm:hidden flex items-center gap-2 mt-3.5 pt-3 border-t border-border">
+              {!editMode ? (
+                <button
+                  data-testid="btn-edit-user-detail-mobile"
+                  onClick={() => setEditMode(true)}
+                  className="flex-1 h-10 flex items-center justify-center gap-1.5 rounded-xl border border-border text-xs font-semibold hover:bg-muted transition-all active:scale-95"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  <span>تعديل البيانات</span>
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setEditMode(false)}
+                    className="flex-1 h-10 flex items-center justify-center gap-1.5 rounded-xl border border-border text-xs text-muted-foreground hover:bg-muted transition-all active:scale-95"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>إلغاء</span>
+                  </button>
+                  <button
+                    data-testid="btn-save-user-detail-mobile"
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="flex-1 h-10 flex items-center justify-center gap-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all active:scale-95 disabled:opacity-50"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>{saving ? "جاري الحفظ…" : "حفظ"}</span>
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5 pt-5 border-t border-border">
+        {/* 4 Stat Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3 mt-4 pt-4 border-t border-border">
           {[
             { label: "المحادثات الكلية", value: (user.conversations ?? 0).toLocaleString("ar"), icon: MessageCircle, color: "text-blue-500", bg: "bg-blue-500/10" },
             { label: "نموذج الشات", value: user.chatKeyName ?? "—", icon: Activity, color: "text-purple-500", bg: "bg-purple-500/10" },
             { label: "نموذج التضمين", value: user.embeddingKeyName ?? "—", icon: Shield, color: "text-emerald-500", bg: "bg-emerald-500/10" },
             { label: "آخر دخول", value: user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString("ar") : "—", icon: Clock, color: "text-amber-500", bg: "bg-amber-500/10" },
           ].map(({ label, value, icon: Icon, color, bg }) => (
-            <div key={label} className="bg-muted/30 rounded-xl p-3 text-center">
-              <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center mx-auto mb-2`}>
+            <div key={label} className="bg-muted/30 rounded-xl p-2.5 sm:p-3 text-center transition-all hover:bg-muted/50">
+              <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center mx-auto mb-1.5`}>
                 <Icon className={`w-4 h-4 ${color}`} />
               </div>
-              <p className="font-bold text-foreground text-sm truncate">{value}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">{label}</p>
+              <p className="font-bold text-foreground text-xs sm:text-sm truncate">{value}</p>
+              <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-0.5 truncate">{label}</p>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="flex gap-1 overflow-x-auto bg-muted rounded-xl p-1">
+      {/* Segmented App Tabs */}
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar bg-muted/60 p-1.5 rounded-2xl border border-border/50">
         {tabs.map(t => (
-          <button key={t.id} data-testid={`tab-user-${t.id}`} onClick={() => setActiveTab(t.id)}
-            className={`px-4 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-all ${activeTab === t.id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+          <button
+            key={t.id}
+            data-testid={`tab-user-${t.id}`}
+            onClick={() => setActiveTab(t.id)}
+            className={`flex-1 min-w-[85px] py-2.5 px-3 rounded-xl text-xs sm:text-sm font-semibold whitespace-nowrap transition-all text-center active:scale-95 ${
+              activeTab === t.id
+                ? "bg-card text-foreground shadow-sm font-bold"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
             {t.label}
           </button>
         ))}
       </div>
 
+      {/* Tab 1: Overview */}
       {activeTab === "overview" && (
-        <div className="bg-card border border-card-border rounded-2xl p-5 shadow-sm space-y-5">
-          <h3 className="font-semibold text-foreground text-sm">البيانات الأساسية</h3>
-          <div className="grid gap-4 md:grid-cols-2">
+        <div className="bg-card border border-card-border rounded-2xl p-4 sm:p-6 shadow-sm space-y-4 sm:space-y-5">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-foreground text-sm sm:text-base">البيانات الأساسية</h3>
+            {editMode && <span className="text-xs text-primary font-medium">وضع التعديل نشط</span>}
+          </div>
+          <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
             {[
-              { label: "الاسم الكامل", field: "name" as const },
-              { label: "رقم الهاتف", field: "phone" as const },
-            ].map(({ label, field }) => (
+              { label: "الاسم الكامل", field: "name" as const, type: "text" },
+              { label: "رقم الهاتف", field: "phone" as const, type: "tel" },
+            ].map(({ label, field, type }) => (
               <div key={field}>
-                <label className="block text-xs text-muted-foreground mb-1">{label}</label>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">{label}</label>
                 {editMode ? (
-                  <input value={form[field]} onChange={e => setForm(p => ({ ...p, [field]: e.target.value }))}
-                    className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                  <input
+                    type={type}
+                    value={form[field]}
+                    onChange={e => setForm(p => ({ ...p, [field]: e.target.value }))}
+                    className="w-full h-11 px-3.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
                 ) : (
-                  <p className="text-sm font-medium text-foreground px-3 py-2 bg-muted/30 rounded-lg">{form[field] || "—"}</p>
+                  <p className="text-sm font-medium text-foreground px-3.5 py-2.5 bg-muted/30 rounded-xl">{form[field] || "—"}</p>
                 )}
               </div>
             ))}
             <div>
-              <label className="block text-xs text-muted-foreground mb-1">البريد الإلكتروني</label>
-              <p className="text-sm font-medium text-foreground px-3 py-2 bg-muted/30 rounded-lg">{user.email}</p>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">البريد الإلكتروني</label>
+              <p className="text-sm font-medium text-foreground px-3.5 py-2.5 bg-muted/30 rounded-xl dir-ltr text-right">{user.email}</p>
             </div>
             <div>
-              <label className="block text-xs text-muted-foreground mb-1">حالة الحساب</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">حالة الحساب</label>
               {editMode ? (
-                <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}
-                  className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+                <select
+                  value={form.status}
+                  onChange={e => setForm(p => ({ ...p, status: e.target.value }))}
+                  className="w-full h-11 px-3.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
                   <option value="active">نشط</option>
                   <option value="pending">معلق</option>
                   <option value="disabled">موقوف</option>
                 </select>
               ) : (
-                <div className="px-3 py-2 bg-muted/30 rounded-lg">
+                <div className="px-3.5 py-2 bg-muted/30 rounded-xl">
                   <Badge className={`text-xs ${statusCfg[form.status]?.cls}`}>{statusCfg[form.status]?.label}</Badge>
                 </div>
               )}
             </div>
           </div>
           {editMode && (
-            <div className="flex justify-end">
-              <button onClick={handleSave} disabled={saving}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50">
-                <Save className="w-4 h-4" />{saving ? "جاري الحفظ…" : "حفظ"}
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="w-full sm:w-auto h-11 px-6 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                <span>{saving ? "جاري الحفظ…" : "حفظ التغييرات"}</span>
               </button>
             </div>
           )}
         </div>
       )}
 
+      {/* Tab 2: WhatsApp Connection */}
       {activeTab === "whatsapp" && (
-        <div className="space-y-5">
-          {/* Status header */}
-          <div className="bg-card border border-card-border rounded-2xl p-5 shadow-sm">
+        <div className="space-y-4 sm:space-y-5">
+          {/* Status Banner */}
+          <div className="bg-card border border-card-border rounded-2xl p-4 sm:p-5 shadow-sm">
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div>
-                <h3 className="font-semibold text-foreground">ربط واتساب</h3>
+                <h3 className="font-bold text-foreground text-sm sm:text-base">ربط واتساب</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   المزود المعتمد:{" "}
-                  <span className="font-semibold text-violet-600 dark:text-violet-400">
+                  <span className="font-bold text-violet-600 dark:text-violet-400">
                     ⚡ Evolution API
                   </span>
                 </p>
               </div>
-              <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-medium ${waCl}`}>
+              <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold ${waCl}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${waStatus === "connected" ? "bg-emerald-500" : waStatus === "disconnected" ? "bg-amber-500" : "bg-muted-foreground"}`} />
                 {waLabel}
               </span>
             </div>
           </div>
 
-          {/* Evolution wizard */}
-          <div className="bg-card border border-card-border rounded-2xl p-5 shadow-sm">
-            <h4 className="font-semibold text-foreground text-sm mb-4">⚡ معالج ربط Evolution API</h4>
+          {/* Evolution Wizard */}
+          <div className="bg-card border border-card-border rounded-2xl p-4 sm:p-6 shadow-sm">
+            <h4 className="font-bold text-foreground text-sm sm:text-base mb-4 flex items-center gap-2">
+              <span>⚡ معالج ربط Evolution API</span>
+            </h4>
             <WhatsAppConnectionWizard
               userId={user.id}
               waBaseUrl={user.waBaseUrl}
@@ -273,46 +393,74 @@ export default function UserDetailPage() {
         </div>
       )}
 
+      {/* Tab 3: Models Settings */}
       {activeTab === "models" && (
-        <div className="bg-card border border-card-border rounded-2xl p-5 shadow-sm space-y-5">
-          <h3 className="font-semibold text-foreground text-sm">إعدادات نماذج الذكاء الاصطناعي</h3>
-          <div className="grid gap-4 md:grid-cols-2">
+        <div className="bg-card border border-card-border rounded-2xl p-4 sm:p-6 shadow-sm space-y-4 sm:space-y-5">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-foreground text-sm sm:text-base">إعدادات نماذج الذكاء الاصطناعي</h3>
+            {!editMode && (
+              <button
+                onClick={() => setEditMode(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border text-xs font-medium hover:bg-muted transition-all active:scale-95"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+                <span>تعديل</span>
+              </button>
+            )}
+          </div>
+
+          <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
             <div>
-              <label className="block text-xs text-muted-foreground mb-1">نموذج الشات الرئيسي (Chat)</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">نموذج الشات الرئيسي (Chat)</label>
               {editMode ? (
-                <select value={form.chatKeyId} onChange={e => setForm(p => ({ ...p, chatKeyId: e.target.value }))}
-                  className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+                <select
+                  value={form.chatKeyId}
+                  onChange={e => setForm(p => ({ ...p, chatKeyId: e.target.value }))}
+                  className="w-full h-11 px-3.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
                   <option value="">بدون</option>
                   {chatKeys.map(k => <option key={k.id} value={k.id}>{k.name} — {k.model}</option>)}
                 </select>
               ) : (
-                <p className="text-sm font-medium text-foreground px-3 py-2 bg-muted/30 rounded-lg">{user.chatKeyName ?? "—"}</p>
+                <p className="text-sm font-medium text-foreground px-3.5 py-2.5 bg-muted/30 rounded-xl">{user.chatKeyName ?? "—"}</p>
               )}
             </div>
             <div>
-              <label className="block text-xs text-muted-foreground mb-1">نموذج التضمين (Embedding)</label>
+              <label className="block text-xs font-medium text-muted-foreground mb-1.5">نموذج التضمين (Embedding)</label>
               {editMode ? (
-                <select value={form.embeddingKeyId} onChange={e => setForm(p => ({ ...p, embeddingKeyId: e.target.value }))}
-                  className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+                <select
+                  value={form.embeddingKeyId}
+                  onChange={e => setForm(p => ({ ...p, embeddingKeyId: e.target.value }))}
+                  className="w-full h-11 px-3.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
                   <option value="">بدون</option>
                   {embeddingKeys.map(k => <option key={k.id} value={k.id}>{k.name} — {k.model}</option>)}
                 </select>
               ) : (
-                <p className="text-sm font-medium text-foreground px-3 py-2 bg-muted/30 rounded-lg">{user.embeddingKeyName ?? "—"}</p>
+                <p className="text-sm font-medium text-foreground px-3.5 py-2.5 bg-muted/30 rounded-xl">{user.embeddingKeyName ?? "—"}</p>
               )}
             </div>
           </div>
 
-          <div className="pt-2 border-t border-border">
-            <label className="block text-xs text-muted-foreground mb-2">مفاتيح الشات الاحتياطية (Fallback) — تُجرَّب بالترتيب عند فشل الرئيسي</label>
+          <div className="pt-3 border-t border-border">
+            <label className="block text-xs font-medium text-muted-foreground mb-2">
+              مفاتيح الشات الاحتياطية (Fallback) — تُجرَّب بالترتيب عند فشل الرئيسي
+            </label>
             {editMode ? (
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {chatKeys
                   .filter(k => !form.chatKeyId || String(k.id) !== form.chatKeyId)
                   .map(k => {
                     const checked = form.chatFallbackKeyIds.includes(k.id);
                     return (
-                      <label key={k.id} className="flex items-center gap-2.5 px-3 py-2 rounded-lg border border-border bg-muted/20 cursor-pointer hover:bg-muted/40 transition-colors">
+                      <label
+                        key={k.id}
+                        className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all active:scale-[0.99] ${
+                          checked
+                            ? "bg-primary/5 border-primary/40 shadow-xs"
+                            : "border-border bg-muted/20 hover:bg-muted/40"
+                        }`}
+                      >
                         <input
                           type="checkbox"
                           checked={checked}
@@ -323,27 +471,31 @@ export default function UserDetailPage() {
                               setForm(p => ({ ...p, chatFallbackKeyIds: p.chatFallbackKeyIds.filter(id => id !== k.id) }));
                             }
                           }}
-                          className="w-4 h-4 accent-primary"
+                          className="w-4 h-4 rounded accent-primary shrink-0"
                         />
-                        <span className="text-sm text-foreground">{k.name}</span>
-                        <span className="text-xs text-muted-foreground ms-auto">{k.model}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-foreground truncate">{k.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{k.model}</p>
+                        </div>
+                        <Badge className="text-[10px] bg-muted shrink-0">{k.provider}</Badge>
                       </label>
                     );
                   })
                 }
                 {chatKeys.filter(k => !form.chatKeyId || String(k.id) !== form.chatKeyId).length === 0 && (
-                  <p className="text-xs text-muted-foreground px-3 py-2 bg-muted/20 rounded-lg">لا توجد مفاتيح إضافية لتعيينها كاحتياطية</p>
+                  <p className="text-xs text-muted-foreground p-3 bg-muted/20 rounded-xl">لا توجد مفاتيح إضافية لتعيينها كاحتياطية</p>
                 )}
               </div>
             ) : (
               <div className="flex flex-wrap gap-2">
                 {form.chatFallbackKeyIds.length === 0 ? (
-                  <p className="text-sm text-muted-foreground px-3 py-2 bg-muted/30 rounded-lg">لا توجد مفاتيح احتياطية</p>
+                  <p className="text-sm text-muted-foreground px-3.5 py-2.5 bg-muted/30 rounded-xl">لا توجد مفاتيح احتياطية</p>
                 ) : (
                   form.chatFallbackKeyIds.map(id => {
                     const k = chatKeys.find(k => k.id === id);
                     return k ? (
-                      <span key={id} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium">
+                      <span key={id} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary/10 text-primary text-xs font-semibold">
+                        <Activity className="w-3 h-3" />
                         {k.name}
                       </span>
                     ) : null;
@@ -352,40 +504,42 @@ export default function UserDetailPage() {
               </div>
             )}
           </div>
-          {!editMode && (
-            <button onClick={() => setEditMode(true)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-all">
-              <Edit2 className="w-4 h-4" />تعديل النماذج
-            </button>
-          )}
+
           {editMode && (
-            <div className="flex justify-end">
-              <button onClick={handleSave} disabled={saving}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 disabled:opacity-50">
-                <Save className="w-4 h-4" />{saving ? "جاري الحفظ…" : "حفظ"}
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="w-full sm:w-auto h-11 px-6 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                <span>{saving ? "جاري الحفظ…" : "حفظ النماذج"}</span>
               </button>
             </div>
           )}
         </div>
       )}
 
+      {/* Tab 4: Activity */}
       {activeTab === "activity" && (
         <div className="space-y-4">
-          <div className="bg-card border border-card-border rounded-2xl p-5 shadow-sm">
-            <h3 className="font-semibold text-foreground text-sm mb-4">محادثات آخر 7 أيام</h3>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={mockActivity}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="date" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-                <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
-                <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "0.75rem", fontSize: 12, direction: "rtl" }} />
-                <Bar dataKey="conversations" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="bg-card border border-card-border rounded-2xl p-4 sm:p-5 shadow-sm">
+            <h3 className="font-bold text-foreground text-sm sm:text-base mb-3">محادثات آخر 7 أيام</h3>
+            <div className="h-48 sm:h-56 w-full -ms-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={mockActivity} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="date" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                  <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} />
+                  <Tooltip contentStyle={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "0.75rem", fontSize: 12, direction: "rtl" }} />
+                  <Bar dataKey="conversations" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-          <div className="bg-card border border-card-border rounded-2xl p-5 shadow-sm">
-            <h3 className="font-semibold text-foreground text-sm mb-3">معلومات النشاط</h3>
-            <div className="grid grid-cols-2 gap-3">
+          <div className="bg-card border border-card-border rounded-2xl p-4 sm:p-5 shadow-sm">
+            <h3 className="font-bold text-foreground text-sm sm:text-base mb-3">معلومات النشاط</h3>
+            <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
               {[
                 { label: "تاريخ التسجيل", value: new Date(user.createdAt).toLocaleDateString("ar") },
                 { label: "آخر تسجيل دخول", value: user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString("ar") : "—" },
@@ -393,8 +547,8 @@ export default function UserDetailPage() {
                 { label: "نموذج الشات", value: user.chatKeyName ?? "—" },
               ].map(({ label, value }) => (
                 <div key={label} className="bg-muted/30 rounded-xl p-3">
-                  <p className="text-[11px] text-muted-foreground mb-1">{label}</p>
-                  <p className="text-sm font-semibold text-foreground">{value}</p>
+                  <p className="text-[11px] text-muted-foreground mb-0.5">{label}</p>
+                  <p className="text-xs sm:text-sm font-bold text-foreground truncate">{value}</p>
                 </div>
               ))}
             </div>

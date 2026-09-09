@@ -175,19 +175,19 @@ export default function WhatsAppConnectionWizard({ userId, waBaseUrl, waApiKey, 
 
   return (
     <div className="space-y-5" dir="rtl">
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+      <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar pb-1.5 -mx-1 px-1">
         {steps.map((s, i) => {
           const Icon = s.icon;
           const active = s.id === step;
           const done = i < stepIdx;
           return (
-            <div key={s.id} className="flex items-center gap-2 shrink-0">
-              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all
-                ${active ? "bg-primary text-primary-foreground shadow-sm" : done ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>
-                <Icon className="w-3.5 h-3.5" />
-                {s.label}
+            <div key={s.id} className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              <div className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-semibold transition-all
+                ${active ? "bg-primary text-primary-foreground shadow-sm scale-105" : done ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
+                <Icon className="w-3.5 h-3.5 shrink-0" />
+                <span>{s.label}</span>
               </div>
-              {i < steps.length - 1 && <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />}
+              {i < steps.length - 1 && <ChevronRight className="w-3 h-3 text-muted-foreground/60 shrink-0 rtl:rotate-180" />}
             </div>
           );
         })}
@@ -388,12 +388,12 @@ export default function WhatsAppConnectionWizard({ userId, waBaseUrl, waApiKey, 
             </div>
           )}
 
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2.5">
             <button
               data-testid="btn-refresh-qr"
               onClick={fetchQr}
               disabled={qrLoading}
-              className="flex-1 h-10 flex items-center justify-center gap-2 border border-border rounded-xl text-xs font-semibold hover:bg-muted transition-all disabled:opacity-50"
+              className="flex-1 h-11 flex items-center justify-center gap-2 border border-border rounded-xl text-xs font-semibold hover:bg-muted transition-all active:scale-95 disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${qrLoading ? "animate-spin" : ""}`} />
               تحديث QR Code
@@ -401,7 +401,7 @@ export default function WhatsAppConnectionWizard({ userId, waBaseUrl, waApiKey, 
             <button
               data-testid="btn-check-status"
               onClick={checkState}
-              className="flex-1 h-10 flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-xl text-xs font-bold hover:bg-primary/90 transition-all"
+              className="flex-1 h-11 flex items-center justify-center gap-2 bg-primary text-primary-foreground rounded-xl text-xs font-bold hover:bg-primary/90 transition-all active:scale-95"
             >
               <Wifi className="w-3.5 h-3.5" />
               التحقق من الاتصال
@@ -417,43 +417,43 @@ export default function WhatsAppConnectionWizard({ userId, waBaseUrl, waApiKey, 
       {step === "connected" && (
         <div className="space-y-5">
           <div className="flex flex-col items-center text-center gap-4 py-4">
-            <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center">
-              <CheckCircle2 className="w-10 h-10 text-emerald-600" />
+            <div className="w-20 h-20 rounded-full bg-emerald-100 dark:bg-emerald-950/50 flex items-center justify-center">
+              <CheckCircle2 className="w-10 h-10 text-emerald-600 dark:text-emerald-400" />
             </div>
             <div>
               <h3 className="text-lg font-bold text-foreground">واتساب متصل بنجاح!</h3>
-              <p className="text-sm text-muted-foreground mt-1">الوكيل الآن يستقبل الرسائل ويرد عليها تلقائياً</p>
+              <p className="text-xs sm:text-sm text-muted-foreground mt-1">الوكيل الآن يستقبل الرسائل ويرد عليها تلقائياً</p>
             </div>
           </div>
 
           <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 space-y-3">
-            <p className="text-xs font-semibold text-emerald-800">معلومات الاتصال:</p>
-            <div className="space-y-2 text-xs text-emerald-700">
-              <div className="flex justify-between">
-                <span className="text-emerald-600">الخادم</span>
-                <span className="font-mono truncate max-w-48">{form.baseUrl || waBaseUrl}</span>
+            <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">معلومات الاتصال:</p>
+            <div className="space-y-2 text-xs text-emerald-700 dark:text-emerald-400">
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-emerald-600 dark:text-emerald-500 shrink-0">الخادم</span>
+                <span className="font-mono truncate text-left dir-ltr max-w-[200px] sm:max-w-xs">{form.baseUrl || waBaseUrl}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-emerald-600">Instance</span>
-                <span className="font-mono">{form.instanceName || waInstanceName}</span>
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-emerald-600 dark:text-emerald-500 shrink-0">Instance</span>
+                <span className="font-mono truncate">{form.instanceName || waInstanceName}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-emerald-600">Webhook</span>
-                <span className="font-mono truncate max-w-48 text-[10px]">{webhookUrl}</span>
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-emerald-600 dark:text-emerald-500 shrink-0">Webhook</span>
+                <span className="font-mono truncate text-[10px] text-left dir-ltr max-w-[200px] sm:max-w-xs">{webhookUrl}</span>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <button
               onClick={checkState}
-              className="h-10 flex items-center justify-center gap-2 border border-border rounded-xl text-xs font-semibold hover:bg-muted transition-all"
+              className="h-11 flex items-center justify-center gap-2 border border-border rounded-xl text-xs font-semibold hover:bg-muted transition-all active:scale-95"
             >
               <RefreshCw className="w-3.5 h-3.5" />التحقق من الحالة
             </button>
             <button
               onClick={handleSetWebhook}
-              className="h-10 flex items-center justify-center gap-2 border border-border rounded-xl text-xs font-semibold hover:bg-muted transition-all"
+              className="h-11 flex items-center justify-center gap-2 border border-border rounded-xl text-xs font-semibold hover:bg-muted transition-all active:scale-95"
             >
               <ExternalLink className="w-3.5 h-3.5" />تحديث Webhook
             </button>
@@ -461,7 +461,7 @@ export default function WhatsAppConnectionWizard({ userId, waBaseUrl, waApiKey, 
 
           <button
             onClick={() => { setStep("config"); setConnState("idle"); }}
-            className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
+            className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors py-2 active:scale-95"
           >
             إعادة الإعداد من البداية
           </button>

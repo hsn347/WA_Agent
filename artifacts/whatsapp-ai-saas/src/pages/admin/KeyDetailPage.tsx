@@ -110,93 +110,138 @@ export default function KeyDetailPage() {
   }));
 
   return (
-    <div className="space-y-5 max-w-4xl">
-      <button data-testid="btn-back-keys" onClick={() => setLocation("/admin/keys")}
-        className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
-        <ArrowRight className="w-4 h-4" />العودة لإدارة المفاتيح
+    <div className="space-y-4 sm:space-y-5 max-w-4xl" dir="rtl">
+      <button
+        data-testid="btn-back-keys"
+        onClick={() => setLocation("/admin/keys")}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-card border border-border text-xs sm:text-sm font-medium text-muted-foreground hover:text-foreground active:scale-95 transition-all shadow-xs"
+      >
+        <ArrowRight className="w-4 h-4" />
+        <span>العودة لإدارة المفاتيح</span>
       </button>
 
-      <div className="bg-card border border-card-border rounded-2xl p-5 shadow-sm">
-        <div className="flex items-start gap-4 flex-wrap">
-          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 ${keyData.type === "chat" ? "bg-blue-500/10" : "bg-purple-500/10"}`}>
-            <Key className={`w-7 h-7 ${keyData.type === "chat" ? "text-blue-500" : "text-purple-500"}`} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-3 flex-wrap">
-              <div>
-                {editMode ? (
-                  <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-                    className="text-xl font-bold bg-transparent border-b-2 border-primary focus:outline-none text-foreground w-full" />
-                ) : (
-                  <h2 className="text-xl font-bold text-foreground">{keyData.name}</h2>
-                )}
-                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                  <Badge variant={keyData.type === "chat" ? "default" : "secondary"} className="text-xs">
-                    {keyData.type === "chat" ? "Chat" : "Embedding"}
-                  </Badge>
-                  <span className="font-mono text-xs bg-muted px-2 py-0.5 rounded">{keyData.model}</span>
-                  <Badge className={`text-xs ${keyData.status === "active" ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20" : "bg-red-500/15 text-red-600 hover:bg-red-500/20"}`}>
-                    {keyData.status === "active" ? "نشط" : "معطل"}
-                  </Badge>
-                  {saved && <Badge className="text-xs bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">تم الحفظ ✓</Badge>}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">{keyData.provider} · أُنشئ {new Date(keyData.createdAt).toLocaleDateString("ar")}</p>
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <button data-testid="btn-test-key-detail" onClick={handleTest} disabled={testing === "testing"}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${tc.cls}`}>
-                  <tc.Icon className={`w-3.5 h-3.5 ${testing === "testing" ? "animate-spin" : ""}`} />
-                  {tc.label}
-                </button>
-                <button data-testid="btn-toggle-key-detail" onClick={handleToggle}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${keyData.status === "active" ? "border-red-500/20 text-red-600 hover:bg-red-500/10" : "border-emerald-500/20 text-emerald-600 hover:bg-emerald-500/10"}`}>
-                  <Power className="w-3.5 h-3.5" />
-                  {keyData.status === "active" ? "تعطيل" : "تفعيل"}
-                </button>
-                {!editMode ? (
-                  <>
-                    <button data-testid="btn-edit-key-detail" onClick={() => setEditMode(true)}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border text-xs font-medium hover:bg-muted transition-all">
-                      <Edit2 className="w-3.5 h-3.5" />تعديل
-                    </button>
-                    <button data-testid="btn-delete-key-detail" onClick={() => setShowDeleteConfirm(true)}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-500/20 text-red-500 hover:bg-red-500/10 text-xs font-medium transition-all">
-                      <Trash2 className="w-3.5 h-3.5" />حذف
-                    </button>
-                  </>
-                ) : (
-                  <div className="flex items-center gap-1.5">
-                    <button onClick={() => setEditMode(false)} className="flex items-center gap-1 px-3 py-2 rounded-xl border border-border text-xs text-muted-foreground hover:bg-muted">
-                      <X className="w-3.5 h-3.5" />إلغاء
-                    </button>
-                    <button data-testid="btn-save-key-detail" onClick={handleSave} disabled={saving}
-                      className="flex items-center gap-1 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-50">
-                      <Save className="w-3.5 h-3.5" />{saving ? "..." : saved ? "تم!" : "حفظ"}
-                    </button>
-                  </div>
-                )}
-              </div>
+      {/* Main Key Info Card */}
+      <div className="bg-card border border-card-border rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+          {/* Key Identity */}
+          <div className="flex items-start gap-3 min-w-0">
+            <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center shrink-0 ${keyData.type === "chat" ? "bg-blue-500/10 text-blue-500" : "bg-purple-500/10 text-purple-500"}`}>
+              <Key className="w-6 h-6" />
             </div>
+            <div className="min-w-0 flex-1">
+              {editMode ? (
+                <input
+                  value={form.name}
+                  onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
+                  className="text-lg sm:text-xl font-bold bg-transparent border-b-2 border-primary focus:outline-none text-foreground w-full pb-0.5"
+                />
+              ) : (
+                <h2 className="text-lg sm:text-xl font-bold text-foreground truncate">{keyData.name}</h2>
+              )}
+              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                <Badge variant={keyData.type === "chat" ? "default" : "secondary"} className="text-[10px]">
+                  {keyData.type === "chat" ? "Chat" : "Embedding"}
+                </Badge>
+                <span className="font-mono text-xs bg-muted px-2 py-0.5 rounded-md truncate max-w-[200px]" dir="ltr">
+                  {keyData.model}
+                </span>
+                <Badge className={`text-[10px] ${keyData.status === "active" ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" : "bg-red-500/15 text-red-600"}`}>
+                  {keyData.status === "active" ? "نشط" : "معطل"}
+                </Badge>
+                {saved && <Badge className="text-[10px] bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">تم الحفظ ✓</Badge>}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {keyData.provider} · أُنشئ {new Date(keyData.createdAt).toLocaleDateString("ar")}
+              </p>
+            </div>
+          </div>
+
+          {/* Action Buttons Grid (Native App Touch Targets) */}
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 pt-1 sm:pt-0">
+            <button
+              data-testid="btn-test-key-detail"
+              onClick={handleTest}
+              disabled={testing === "testing"}
+              className={`flex items-center justify-center gap-1.5 h-10 px-3 rounded-xl text-xs font-semibold transition-all active:scale-95 ${tc.cls}`}
+            >
+              <tc.Icon className={`w-3.5 h-3.5 ${testing === "testing" ? "animate-spin" : ""}`} />
+              <span className="truncate">{tc.label}</span>
+            </button>
+
+            <button
+              data-testid="btn-toggle-key-detail"
+              onClick={handleToggle}
+              className={`flex items-center justify-center gap-1.5 h-10 px-3 rounded-xl text-xs font-semibold border transition-all active:scale-95 ${
+                keyData.status === "active"
+                  ? "border-red-500/20 bg-red-500/10 text-red-600 hover:bg-red-500/20"
+                  : "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"
+              }`}
+            >
+              <Power className="w-3.5 h-3.5" />
+              <span>{keyData.status === "active" ? "تعطيل" : "تفعيل"}</span>
+            </button>
+
+            {!editMode ? (
+              <>
+                <button
+                  data-testid="btn-edit-key-detail"
+                  onClick={() => setEditMode(true)}
+                  className="flex items-center justify-center gap-1.5 h-10 px-3 rounded-xl border border-border text-xs font-medium hover:bg-muted text-foreground transition-all active:scale-95"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  <span>تعديل</span>
+                </button>
+                <button
+                  data-testid="btn-delete-key-detail"
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="flex items-center justify-center gap-1.5 h-10 px-3 rounded-xl border border-red-500/20 text-red-500 hover:bg-red-500/10 text-xs font-medium transition-all active:scale-95"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>حذف</span>
+                </button>
+              </>
+            ) : (
+              <div className="col-span-2 sm:col-span-1 flex items-center gap-2">
+                <button
+                  onClick={() => setEditMode(false)}
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1 h-10 px-3 rounded-xl border border-border text-xs text-muted-foreground hover:bg-muted transition-all active:scale-95"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>إلغاء</span>
+                </button>
+                <button
+                  data-testid="btn-save-key-detail"
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 h-10 px-4 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-50 transition-all active:scale-95 shadow-xs"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{saving ? "..." : saved ? "تم!" : "حفظ"}</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5 pt-5 border-t border-border">
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3 pt-4 border-t border-border">
           {[
             { label: "التوكن المستهلكة", value: (keyData.tokensUsed / 1000).toFixed(0) + "K", icon: Cpu, color: "text-blue-500", bg: "bg-blue-500/10" },
             { label: "إجمالي الطلبات", value: keyData.requestsCount.toLocaleString("ar"), icon: Activity, color: "text-purple-500", bg: "bg-purple-500/10" },
             { label: "متوسط التأخير", value: keyData.avgLatencyMs > 0 ? keyData.avgLatencyMs + "ms" : "—", icon: Clock, color: "text-amber-500", bg: "bg-amber-500/10" },
             { label: "الحالة", value: keyData.status === "active" ? "نشط" : "معطل", icon: ShieldCheck, color: "text-emerald-500", bg: "bg-emerald-500/10" },
           ].map(({ label, value, icon: Icon, color, bg }) => (
-            <div key={label} className="bg-muted/30 rounded-xl p-3 text-center">
-              <div className={`w-8 h-8 rounded-lg ${bg} flex items-center justify-center mx-auto mb-2`}>
+            <div key={label} className="bg-muted/30 rounded-xl p-2.5 sm:p-3 text-center border border-border/50">
+              <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg ${bg} flex items-center justify-center mx-auto mb-1.5`}>
                 <Icon className={`w-4 h-4 ${color}`} />
               </div>
-              <p className="font-bold text-foreground text-sm">{value}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">{label}</p>
+              <p className="font-bold text-foreground text-sm sm:text-base">{value}</p>
+              <p className="text-[10px] sm:text-[11px] text-muted-foreground mt-0.5">{label}</p>
             </div>
           ))}
         </div>
       </div>
+
 
       <div className="bg-card border border-card-border rounded-2xl p-5 shadow-sm">
         <div className="flex items-center justify-between mb-3">
@@ -271,10 +316,15 @@ export default function KeyDetailPage() {
               placeholder="gsk-••••••••••••••••" dir="ltr"
               className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring" />
           </div>
-          <div className="flex justify-end">
-            <button data-testid="btn-save-key-form" onClick={handleSave} disabled={saving}
-              className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all disabled:opacity-50">
-              <Save className="w-4 h-4" />{saving ? "جاري الحفظ..." : saved ? "تم الحفظ!" : "حفظ التغييرات"}
+          <div className="flex justify-end pt-1">
+            <button
+              data-testid="btn-save-key-form"
+              onClick={handleSave}
+              disabled={saving}
+              className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all disabled:opacity-50 active:scale-95 shadow-xs"
+            >
+              <Save className="w-4 h-4" />
+              <span>{saving ? "جاري الحفظ..." : saved ? "تم الحفظ!" : "حفظ التغييرات"}</span>
             </button>
           </div>
         </div>
@@ -282,30 +332,36 @@ export default function KeyDetailPage() {
 
       {/* Delete confirmation dialog */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" dir="rtl">
-          <div className="bg-card border border-card-border rounded-2xl p-6 shadow-xl max-w-sm w-full space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4" dir="rtl">
+          <div className="bg-card border border-card-border rounded-2xl p-5 sm:p-6 shadow-xl max-w-sm w-full space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center shrink-0">
                 <Trash2 className="w-5 h-5 text-red-500" />
               </div>
               <div>
-                <h3 className="font-semibold text-foreground">حذف المفتاح</h3>
+                <h3 className="font-semibold text-foreground text-base">حذف المفتاح</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">هذا الإجراء لا يمكن التراجع عنه</p>
               </div>
             </div>
-            <p className="text-sm text-foreground">
-              هل أنت متأكد من حذف المفتاح <span className="font-semibold text-red-600">"{keyData.name}"</span>؟
-              سيتوقف أي مستخدم يعتمد عليه عن العمل بشكل صحيح.
+            <p className="text-xs sm:text-sm text-foreground/90 leading-relaxed">
+              هل أنت متأكد من حذف المفتاح <span className="font-semibold text-red-600">"{keyData.name}"</span>؟ سيتوقف أي مستخدم يعتمد عليه عن العمل بشكل صحيح.
             </p>
-            <div className="flex gap-2 justify-end">
-              <button onClick={() => setShowDeleteConfirm(false)} disabled={deleting}
-                className="px-4 py-2 rounded-lg border border-border text-muted-foreground hover:bg-muted text-sm transition-all disabled:opacity-50">
+            <div className="flex flex-col-reverse sm:flex-row gap-2 justify-end pt-1">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleting}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-border text-muted-foreground hover:bg-muted text-xs sm:text-sm font-medium transition-all active:scale-95 disabled:opacity-50"
+              >
                 إلغاء
               </button>
-              <button data-testid="btn-confirm-delete" onClick={handleDelete} disabled={deleting}
-                className="px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-semibold hover:bg-red-600 transition-all disabled:opacity-50 flex items-center gap-1.5">
-                <Trash2 className="w-3.5 h-3.5" />
-                {deleting ? "جاري الحذف..." : "نعم، احذف المفتاح"}
+              <button
+                data-testid="btn-confirm-delete"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-red-500 text-white text-xs sm:text-sm font-semibold hover:bg-red-600 transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-xs"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{deleting ? "جاري الحذف..." : "نعم، احذف المفتاح"}</span>
               </button>
             </div>
           </div>
@@ -314,3 +370,4 @@ export default function KeyDetailPage() {
     </div>
   );
 }
+

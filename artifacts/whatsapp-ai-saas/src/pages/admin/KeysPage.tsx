@@ -142,45 +142,155 @@ export default function KeysPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3 md:gap-4">
         {[
-          { label: "إجمالي المفاتيح",   value: keys.length,                                    icon: Key,       color: "text-primary" },
-          { label: "المفاتيح النشطة",   value: activeKeys,                                     icon: Activity,  color: "text-emerald-500" },
-          { label: "إجمالي التوكن",     value: (totalTokens / 1000000).toFixed(1) + "M",       icon: Cpu,       color: "text-blue-500" },
-          { label: "إجمالي الطلبات",   value: totalRequests.toLocaleString("ar"),              icon: RefreshCw, color: "text-amber-500" },
-        ].map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="bg-card border border-card-border rounded-xl p-4 shadow-sm">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-muted-foreground font-medium">{label}</span>
-              <Icon className={`w-4 h-4 ${color}`} />
+          { label: "إجمالي المفاتيح",   value: keys.length,                                    icon: Key,       color: "text-primary", bg: "bg-primary/10" },
+          { label: "المفاتيح النشطة",   value: activeKeys,                                     icon: Activity,  color: "text-emerald-500", bg: "bg-emerald-500/10" },
+          { label: "إجمالي التوكن",     value: (totalTokens / 1000000).toFixed(1) + "M",       icon: Cpu,       color: "text-blue-500", bg: "bg-blue-500/10" },
+          { label: "إجمالي الطلبات",   value: totalRequests.toLocaleString("ar"),              icon: RefreshCw, color: "text-amber-500", bg: "bg-amber-500/10" },
+        ].map(({ label, value, icon: Icon, color, bg }) => (
+          <div key={label} className="bg-card border border-card-border rounded-xl p-3 sm:p-4 shadow-xs">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[11px] sm:text-xs text-muted-foreground font-medium truncate">{label}</span>
+              <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg ${bg} flex items-center justify-center shrink-0`}>
+                <Icon className={`w-3.5 h-3.5 ${color}`} />
+              </div>
             </div>
-            <p className="text-xl font-bold text-foreground">{loading ? "..." : value}</p>
+            <p className="text-lg sm:text-xl font-bold text-foreground">{loading ? "..." : value}</p>
           </div>
         ))}
       </div>
 
-      <div className="bg-card border border-card-border rounded-xl shadow-sm overflow-hidden">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border-b border-border">
-          <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+      <div className="bg-card border border-card-border rounded-2xl shadow-xs overflow-hidden">
+        {/* Controls header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 border-b border-border">
+          <div className="flex items-center gap-1 bg-muted rounded-xl p-1 overflow-x-auto no-scrollbar">
             {(["all", "chat", "embedding"] as const).map(f => (
-              <button key={f} onClick={() => setFilter(f)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${filter === f ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+                  filter === f ? "bg-card text-foreground shadow-xs font-semibold" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
                 {f === "all" ? "الكل" : f === "chat" ? "Chat" : "Embedding"}
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-2">
-            <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:bg-muted text-xs transition-all">
-              <Filter className="w-3.5 h-3.5" /><span>فلترة</span>
-            </button>
-            <button data-testid="btn-add-key" onClick={() => setShowModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all">
-              <Plus className="w-3.5 h-3.5" /><span>إضافة مفتاح</span>
+          <div className="flex items-center gap-2 justify-end">
+            <button
+              data-testid="btn-add-key"
+              onClick={() => setShowModal(true)}
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all shadow-xs active:scale-95"
+            >
+              <Plus className="w-4 h-4" />
+              <span>إضافة مفتاح</span>
             </button>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* ── Mobile Card List (Native App Style) ── */}
+        <div className="md:hidden divide-y divide-border">
+          {loading && (
+            <div className="text-center py-10 text-muted-foreground text-sm">
+              <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-primary" />
+              جاري تحميل المفاتيح...
+            </div>
+          )}
+          {!loading && filtered.length === 0 && (
+            <div className="text-center py-12 text-muted-foreground">
+              <Key className="w-10 h-10 mx-auto mb-2 opacity-20" />
+              <p className="text-sm font-medium">لا توجد مفاتيح تطابق التحديد</p>
+            </div>
+          )}
+          {filtered.map(key => {
+            const isTestingThis = testing === key.id;
+            const tokenPercent = Math.min(100, Math.round((key.tokensUsed / MAX_TOKENS) * 100));
+
+            return (
+              <div
+                key={key.id}
+                onClick={() => setLocation(`/admin/keys/${key.id}`)}
+                className="p-3.5 space-y-3 hover:bg-muted/30 active:bg-muted/50 transition-colors cursor-pointer"
+              >
+                {/* Top Row: Icon + Name + Status */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${key.type === "chat" ? "bg-blue-500/15 text-blue-600 dark:text-blue-400" : "bg-purple-500/15 text-purple-600 dark:text-purple-400"}`}>
+                      <Key className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-foreground text-sm truncate">{key.name}</p>
+                      <p className="text-xs text-muted-foreground">{key.provider}</p>
+                    </div>
+                  </div>
+                  <Badge className={`text-[10px] shrink-0 ${key.status === "active" ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" : "bg-red-500/15 text-red-600"}`}>
+                    {key.status === "active" ? "نشط" : "معطل"}
+                  </Badge>
+                </div>
+
+                {/* Model & Type Tags */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-mono text-xs bg-muted px-2 py-0.5 rounded-md text-foreground/80 truncate max-w-[220px]" dir="ltr">
+                    {key.model}
+                  </span>
+                  <Badge variant={key.type === "chat" ? "default" : "secondary"} className="text-[10px]">
+                    {key.type === "chat" ? "Chat" : "Embedding"}
+                  </Badge>
+                </div>
+
+                {/* Consumption Progress */}
+                <div className="space-y-1 bg-muted/20 p-2 rounded-lg border border-border/50">
+                  <div className="flex justify-between text-[11px] text-muted-foreground">
+                    <span>التوكن: {(key.tokensUsed / 1000).toFixed(0)}K / 2M</span>
+                    <span className="font-semibold">{tokenPercent}%</span>
+                  </div>
+                  <Progress value={tokenPercent} className="h-1.5" />
+                  <p className="text-[10px] text-muted-foreground/80 text-left pt-0.5">
+                    الطلبات: {key.requestsCount.toLocaleString("ar")}
+                  </p>
+                </div>
+
+                {/* Actions Row */}
+                <div className="flex items-center gap-2 pt-0.5" onClick={e => e.stopPropagation()}>
+                  <button
+                    data-testid={`btn-test-${key.id}`}
+                    onClick={e => testConnection(key.id, e)}
+                    disabled={isTestingThis}
+                    className="flex-1 flex items-center justify-center gap-1 h-9 rounded-xl border border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-medium active:scale-95 transition-all"
+                  >
+                    {isTestingThis ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Wifi className="w-3.5 h-3.5" />}
+                    <span>اختبار</span>
+                  </button>
+
+                  <button
+                    data-testid={`btn-toggle-${key.id}`}
+                    onClick={e => toggleKey(key.id, key.status, e)}
+                    className={`flex-1 flex items-center justify-center gap-1 h-9 rounded-xl border text-xs font-medium active:scale-95 transition-all ${
+                      key.status === "active"
+                        ? "border-red-500/20 bg-red-500/10 text-red-600"
+                        : "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                    }`}
+                  >
+                    <Power className="w-3.5 h-3.5" />
+                    <span>{key.status === "active" ? "تعطيل" : "تفعيل"}</span>
+                  </button>
+
+                  <button
+                    data-testid={`btn-edit-${key.id}`}
+                    onClick={() => setLocation(`/admin/keys/${key.id}`)}
+                    className="flex items-center justify-center px-3 h-9 rounded-xl border border-border bg-card text-muted-foreground hover:text-foreground text-xs font-medium active:scale-95 transition-all"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ── Desktop Table (md:block) ── */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
@@ -258,21 +368,24 @@ export default function KeysPage() {
         </div>
       </div>
 
+
       <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl">
-          <DialogHeader><DialogTitle>إضافة مفتاح API جديد</DialogTitle></DialogHeader>
+        <DialogContent className="w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto p-4 sm:p-6 rounded-2xl" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="text-base sm:text-lg">إضافة مفتاح API جديد</DialogTitle>
+          </DialogHeader>
           <div className="space-y-4 py-2">
 
             {/* Provider selector */}
             <div>
-              <label className="block text-sm font-medium text-foreground mb-2">المزود</label>
+              <label className="block text-xs font-semibold text-foreground mb-2">المزود</label>
               <div className="grid grid-cols-3 gap-2">
                 {(Object.entries(PROVIDERS) as [ProviderKey, typeof PROVIDERS[ProviderKey]][]).map(([key, cfg]) => (
                   <button
                     key={key}
                     type="button"
                     onClick={() => selectProvider(key)}
-                    className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl border-2 text-center transition-all ${
+                    className={`flex flex-col items-center gap-1 py-2.5 px-2 rounded-xl border-2 text-center transition-all active:scale-95 ${
                       selectedProvider === key
                         ? `${cfg.border} ${cfg.bg} ${cfg.color}`
                         : "border-border hover:border-muted-foreground/40 text-muted-foreground"
@@ -295,26 +408,26 @@ export default function KeysPage() {
 
             {/* Key name */}
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">اسم المفتاح</label>
+              <label className="block text-xs font-semibold text-foreground mb-1.5">اسم المفتاح</label>
               <input
                 data-testid="input-key-name"
                 value={form.name}
                 onChange={e => setForm(prev => ({ ...prev, name: e.target.value }))}
                 placeholder={`مثال: ${currentProviderConfig.label} الرئيسي`}
-                className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full h-11 px-3 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
 
             {/* Model selector */}
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">النموذج</label>
+              <label className="block text-xs font-semibold text-foreground mb-1.5">النموذج</label>
               <div className="space-y-1.5">
                 {currentProviderConfig.models.map(m => (
                   <button
                     key={m.id}
                     type="button"
                     onClick={() => setForm(prev => ({ ...prev, model: m.id, type: m.type }))}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-right transition-all ${
+                    className={`w-full flex items-center justify-between p-3 rounded-xl border text-right transition-all active:scale-[0.99] ${
                       form.model === m.id
                         ? `${currentProviderConfig.border} ${currentProviderConfig.bg}`
                         : "border-border hover:border-muted-foreground/40"
@@ -324,19 +437,19 @@ export default function KeysPage() {
                       <p className={`text-sm font-medium ${form.model === m.id ? currentProviderConfig.color : "text-foreground"}`}>{m.label}</p>
                       {m.desc && <p className="text-xs text-muted-foreground mt-0.5">{m.desc}</p>}
                     </div>
-                    <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded shrink-0 ms-2 hidden sm:block">
+                    <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded-md shrink-0 ms-2">
                       {m.type === "chat" ? "Chat" : "Embedding"}
                     </span>
                   </button>
                 ))}
                 {/* Custom model input */}
-                <div className="relative">
+                <div className="relative pt-1">
                   <input
                     data-testid="input-key-model"
                     value={currentProviderConfig.models.some(m => m.id === form.model) ? "" : form.model}
                     onChange={e => setForm(prev => ({ ...prev, model: e.target.value }))}
                     placeholder="أو أدخل اسم نموذج مخصص..."
-                    className="w-full h-9 px-3 rounded-lg border border-dashed border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring text-muted-foreground placeholder:text-muted-foreground/60"
+                    className="w-full h-10 px-3 rounded-xl border border-dashed border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring text-muted-foreground placeholder:text-muted-foreground/60"
                     dir="ltr"
                   />
                 </div>
@@ -345,7 +458,7 @@ export default function KeysPage() {
 
             {/* API Key */}
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">مفتاح API</label>
+              <label className="block text-xs font-semibold text-foreground mb-1.5">مفتاح API</label>
               <input
                 data-testid="input-key-apikey"
                 type="password"
@@ -353,24 +466,30 @@ export default function KeysPage() {
                 onChange={e => setForm(prev => ({ ...prev, apiKey: e.target.value }))}
                 placeholder={currentProviderConfig.placeholder}
                 dir="ltr"
-                className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full h-11 px-3 rounded-xl border border-input bg-background text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
           </div>
 
-          <DialogFooter className="gap-2">
-            <button onClick={() => setShowModal(false)} className="px-4 py-2 rounded-lg border border-border text-muted-foreground hover:bg-muted text-sm transition-all">إلغاء</button>
+          <DialogFooter className="gap-2 pt-2 flex flex-col-reverse sm:flex-row">
+            <button
+              onClick={() => setShowModal(false)}
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-border text-muted-foreground hover:bg-muted text-sm transition-all active:scale-95"
+            >
+              إلغاء
+            </button>
             <button
               data-testid="btn-save-key"
               onClick={handleAdd}
               disabled={saving || !form.name || !form.model || !form.apiKey}
-              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all disabled:opacity-50"
+              className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all disabled:opacity-50 active:scale-95 shadow-xs"
             >
               {saving ? "جاري الحفظ..." : "حفظ المفتاح"}
             </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }

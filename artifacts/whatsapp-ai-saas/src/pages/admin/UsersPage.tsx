@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
-import { Plus, Edit2, Trash2, Users, UserCheck, Clock, Wifi, WifiOff, AlertCircle, TriangleAlert } from "lucide-react";
+import {
+  Plus, Edit2, Trash2, Users, UserCheck, Clock, Wifi, WifiOff,
+  AlertCircle, TriangleAlert, Search, Mail, Phone, Calendar, ChevronLeft
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useLocation } from "wouter";
@@ -15,16 +18,17 @@ const statusConfig = {
 };
 
 const waStatusConfig = {
-  connected:    { label: "متصل",      Icon: Wifi,         cls: "text-emerald-600" },
-  disconnected: { label: "غير متصل", Icon: WifiOff,      cls: "text-amber-500" },
-  error:        { label: "خطأ",       Icon: AlertCircle,  cls: "text-red-500" },
-  idle:         { label: "لم يُعد",   Icon: WifiOff,      cls: "text-muted-foreground" },
+  connected:    { label: "متصل",      Icon: Wifi,         cls: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
+  disconnected: { label: "غير متصل", Icon: WifiOff,      cls: "text-amber-600 dark:text-amber-300 bg-amber-500/10 border-amber-500/20" },
+  error:        { label: "خطأ",       Icon: AlertCircle,  cls: "text-red-500 bg-red-500/10 border-red-500/20" },
+  idle:         { label: "لم يُعد",   Icon: WifiOff,      cls: "text-muted-foreground bg-muted/40 border-border" },
 };
 
 export default function UsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
@@ -53,6 +57,13 @@ export default function UsersPage() {
 
   const chatKeys = apiKeys.filter(k => k.type === "chat" && k.status === "active");
   const embeddingKeys = apiKeys.filter(k => k.type === "embedding" && k.status === "active");
+
+  const filteredUsers = users.filter(u =>
+    !search ||
+    u.name.toLowerCase().includes(search.toLowerCase()) ||
+    u.email.toLowerCase().includes(search.toLowerCase()) ||
+    (u.phone && u.phone.includes(search))
+  );
 
   const activeUsers = users.filter(u => u.status === "active").length;
   const pendingUsers = users.filter(u => u.status === "pending").length;
@@ -98,37 +109,152 @@ export default function UsersPage() {
     }
   };
 
-  const providerMeta = WA_PROVIDERS.find(p => p.id === form.waProvider) ?? WA_PROVIDERS[0]!;
-
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+    <div className="space-y-4 sm:space-y-6" dir="rtl">
+      {/* ── Top Stats Grid ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3 md:gap-4">
         {[
-          { label: "إجمالي المستخدمين",  value: users.length, icon: Users,     color: "text-primary" },
-          { label: "المستخدمون النشطون", value: activeUsers,  icon: UserCheck, color: "text-emerald-500" },
-          { label: "في انتظار الإعداد",  value: pendingUsers, icon: Clock,     color: "text-amber-500" },
-          { label: "واتساب متصل",        value: connectedWa,  icon: Wifi,      color: "text-blue-500" },
-        ].map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="bg-card border border-card-border rounded-xl p-4 shadow-sm">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-muted-foreground font-medium">{label}</span>
-              <Icon className={`w-4 h-4 ${color}`} />
+          { label: "إجمالي المستخدمين",  value: users.length, icon: Users,     color: "text-primary", bg: "bg-primary/10" },
+          { label: "المستخدمون النشطون", value: activeUsers,  icon: UserCheck, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+          { label: "في انتظار الإعداد",  value: pendingUsers, icon: Clock,     color: "text-amber-500", bg: "bg-amber-500/10" },
+          { label: "واتساب متصل",        value: connectedWa,  icon: Wifi,      color: "text-blue-500", bg: "bg-blue-500/10" },
+        ].map(({ label, value, icon: Icon, color, bg }) => (
+          <div key={label} className="bg-card border border-card-border rounded-xl p-3 sm:p-4 shadow-xs">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[11px] sm:text-xs text-muted-foreground font-medium truncate">{label}</span>
+              <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg ${bg} flex items-center justify-center shrink-0`}>
+                <Icon className={`w-3.5 h-3.5 ${color}`} />
+              </div>
             </div>
-            <p className="text-xl font-bold text-foreground">{loading ? "..." : value}</p>
+            <p className="text-lg sm:text-xl font-bold text-foreground">{loading ? "..." : value}</p>
           </div>
         ))}
       </div>
 
-      <div className="bg-card border border-card-border rounded-xl shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <h2 className="font-semibold text-foreground text-sm">قائمة المستخدمين</h2>
-          <button data-testid="btn-add-user" onClick={() => { setShowModal(true); setStep(1); setWaConfig({}); setForm({ name: "", email: "", password: "", phone: "", chatKeyId: "", embeddingKeyId: "", waProvider: "evolution" }); }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all">
-            <Plus className="w-3.5 h-3.5" /><span>إضافة مستخدم</span>
-          </button>
+      {/* ── Main Card Container ── */}
+      <div className="bg-card border border-card-border rounded-2xl shadow-xs overflow-hidden">
+        {/* Header & Controls */}
+        <div className="p-3.5 sm:p-4 border-b border-border space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-bold text-foreground text-sm sm:text-base">قائمة المستخدمين</h2>
+            <button
+              data-testid="btn-add-user"
+              onClick={() => {
+                setShowModal(true);
+                setStep(1);
+                setWaConfig({});
+                setForm({ name: "", email: "", password: "", phone: "", chatKeyId: "", embeddingKeyId: "", waProvider: "evolution" });
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all shadow-xs active:scale-95 shrink-0"
+            >
+              <Plus className="w-4 h-4" />
+              <span>إضافة مستخدم</span>
+            </button>
+          </div>
+
+          {/* Search bar */}
+          <div className="relative">
+            <Search className="w-4 h-4 text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="البحث بالاسم أو البريد أو رقم الهاتف..."
+              className="w-full h-10 pr-9 pl-3 rounded-xl border border-input bg-background text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* ── Mobile Native Cards View (md:hidden) ── */}
+        <div className="md:hidden divide-y divide-border">
+          {loading && (
+            <div className="text-center py-10 text-muted-foreground text-sm">
+              <span className="inline-block w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin mb-2" />
+              <p>جاري التحميل...</p>
+            </div>
+          )}
+          {!loading && filteredUsers.length === 0 && (
+            <div className="text-center py-12 text-muted-foreground">
+              <Users className="w-10 h-10 mx-auto mb-2 opacity-20" />
+              <p className="text-sm font-medium">لا يوجد مستخدمون مطابقون</p>
+            </div>
+          )}
+          {filteredUsers.map(user => {
+            const waKey = (user.waStatus ?? "idle") as keyof typeof waStatusConfig;
+            const wa = waStatusConfig[waKey] ?? waStatusConfig.idle;
+            const WaIcon = wa.Icon;
+
+            return (
+              <div
+                key={user.id}
+                onClick={() => setLocation(`/admin/users/${user.id}`)}
+                className="p-3.5 space-y-3 hover:bg-muted/30 active:bg-muted/50 transition-colors cursor-pointer"
+              >
+                {/* Top Row: Avatar + Name + Status Badge */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary shrink-0">
+                      {user.name.charAt(0)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-bold text-foreground text-sm truncate">{user.name}</p>
+                      <p className="text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5">
+                        <Mail className="w-3 h-3 shrink-0" />
+                        <span>{user.email}</span>
+                      </p>
+                      {user.phone && (
+                        <p className="text-xs text-muted-foreground truncate flex items-center gap-1 mt-0.5">
+                          <Phone className="w-3 h-3 shrink-0" />
+                          <span dir="ltr">{user.phone}</span>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <Badge className={`text-[10px] shrink-0 ${statusConfig[user.status as keyof typeof statusConfig]?.className}`}>
+                    {statusConfig[user.status as keyof typeof statusConfig]?.label}
+                  </Badge>
+                </div>
+
+                {/* Info row: Chat key + WhatsApp status + Date */}
+                <div className="grid grid-cols-2 gap-2 bg-muted/20 p-2.5 rounded-xl border border-border/50 text-xs">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block">نموذج الشات:</span>
+                    <span className="font-medium text-foreground truncate block">{user.chatKeyName ?? "بدون"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block">واتساب (Evolution):</span>
+                    <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[11px] font-semibold mt-0.5 ${wa.cls}`}>
+                      <WaIcon className="w-3 h-3" />
+                      <span>{wa.label}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions footer */}
+                <div className="flex items-center gap-2 pt-0.5" onClick={e => e.stopPropagation()}>
+                  <button
+                    data-testid={`btn-edit-user-${user.id}`}
+                    onClick={() => setLocation(`/admin/users/${user.id}`)}
+                    className="flex-1 flex items-center justify-center gap-1.5 h-9 rounded-xl border border-border bg-card text-foreground text-xs font-semibold hover:bg-muted active:scale-95 transition-all shadow-2xs"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                    <span>عرض التفاصيل</span>
+                  </button>
+                  <button
+                    data-testid={`btn-delete-user-${user.id}`}
+                    onClick={() => setDeleteTarget(user)}
+                    className="flex items-center justify-center w-9 h-9 rounded-xl border border-red-500/20 bg-red-500/10 text-red-600 hover:bg-red-500/20 active:scale-95 transition-all shrink-0"
+                    title="حذف المستخدم"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ── Desktop Table (hidden md:block) ── */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
@@ -143,8 +269,8 @@ export default function UsersPage() {
             </thead>
             <tbody>
               {loading && <tr><td colSpan={7} className="text-center py-8 text-muted-foreground text-sm">جاري التحميل...</td></tr>}
-              {!loading && users.length === 0 && <tr><td colSpan={7} className="text-center py-8 text-muted-foreground text-sm">لا يوجد مستخدمون بعد</td></tr>}
-              {users.map((user, i) => {
+              {!loading && filteredUsers.length === 0 && <tr><td colSpan={7} className="text-center py-8 text-muted-foreground text-sm">لا يوجد مستخدمون بعد</td></tr>}
+              {filteredUsers.map((user, i) => {
                 const waKey = (user.waStatus ?? "idle") as keyof typeof waStatusConfig;
                 const wa = waStatusConfig[waKey] ?? waStatusConfig.idle;
                 const WaIcon = wa.Icon;
@@ -178,9 +304,9 @@ export default function UsersPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className={`flex items-center gap-1 text-xs font-medium ${wa.cls}`}>
+                      <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium ${wa.cls}`}>
                         <WaIcon className="w-3.5 h-3.5" />
-                        <span className="hidden sm:inline">{wa.label}</span>
+                        <span>{wa.label}</span>
                       </div>
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell text-xs text-muted-foreground">
@@ -209,7 +335,7 @@ export default function UsersPage() {
 
       {/* ── Delete confirmation dialog ────────────────────────────── */}
       <Dialog open={!!deleteTarget} onOpenChange={open => { if (!open && !deleting) setDeleteTarget(null); }}>
-        <DialogContent className="sm:max-w-sm" dir="rtl">
+        <DialogContent className="w-[94vw] sm:max-w-sm rounded-2xl p-5 sm:p-6" dir="rtl">
           <DialogHeader>
             <div className="flex items-center gap-3 mb-1">
               <div className="w-10 h-10 rounded-full bg-red-500/15 flex items-center justify-center shrink-0">
@@ -220,13 +346,13 @@ export default function UsersPage() {
           </DialogHeader>
 
           {deleteTarget && (
-            <div className="space-y-4">
+            <div className="space-y-3.5 py-1">
               {/* User card */}
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/50 border border-border">
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border border-border">
                 <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary shrink-0">
                   {deleteTarget.name.charAt(0)}
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="font-semibold text-sm text-foreground truncate">{deleteTarget.name}</p>
                   <p className="text-xs text-muted-foreground truncate">{deleteTarget.email}</p>
                 </div>
@@ -234,17 +360,16 @@ export default function UsersPage() {
 
               {/* Warning list */}
               <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-3 space-y-1.5">
-                <p className="text-xs font-semibold text-red-600 dark:text-red-400 mb-2">سيتم حذف جميع البيانات التالية نهائياً:</p>
+                <p className="text-xs font-semibold text-red-600 dark:text-red-400 mb-1.5">سيتم حذف البيانات التالية نهائياً:</p>
                 {[
                   "المحادثات والرسائل",
                   "الطلبات والعملاء",
                   "المنتجات والكوبونات",
-                  "بيانات المتجر والتوصيل",
-                  "إعداد واتساب والوكيل",
+                  "إعدادات واتساب والوكيل",
                 ].map(item => (
                   <div key={item} className="flex items-center gap-2 text-xs text-red-700 dark:text-red-300">
-                    <span className="w-1 h-1 rounded-full bg-red-500 shrink-0" />
-                    {item}
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
+                    <span>{item}</span>
                   </div>
                 ))}
               </div>
@@ -253,13 +378,19 @@ export default function UsersPage() {
             </div>
           )}
 
-          <DialogFooter className="gap-2 mt-2">
-            <button onClick={() => setDeleteTarget(null)} disabled={deleting}
-              className="flex-1 px-4 py-2 rounded-lg border border-border text-muted-foreground hover:bg-muted text-sm transition-colors disabled:opacity-50">
+          <DialogFooter className="gap-2 pt-2 flex flex-col-reverse sm:flex-row">
+            <button
+              onClick={() => setDeleteTarget(null)}
+              disabled={deleting}
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-border text-muted-foreground hover:bg-muted text-xs sm:text-sm font-medium transition-all active:scale-95 disabled:opacity-50"
+            >
               إلغاء
             </button>
-            <button onClick={handleDelete} disabled={deleting}
-              className="flex-1 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm font-semibold transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 shadow-xs"
+            >
               {deleting ? (
                 <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />جاري الحذف...</>
               ) : (
@@ -272,11 +403,13 @@ export default function UsersPage() {
 
       {/* ── Add user dialog ───────────────────────────────────────── */}
       <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent className="sm:max-w-lg" dir="rtl">
-          <DialogHeader><DialogTitle>إضافة مستخدم جديد</DialogTitle></DialogHeader>
+        <DialogContent className="w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto p-4 sm:p-6 rounded-2xl" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="text-base sm:text-lg">إضافة مستخدم جديد</DialogTitle>
+          </DialogHeader>
 
           {/* Step indicator */}
-          <div className="flex items-center gap-2 mb-4">
+          <div className="flex items-center gap-2 my-2 sm:my-3">
             {[1, 2, 3].map(s => (
               <div key={s} className="flex items-center gap-2">
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${step >= s ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>{s}</div>
@@ -290,7 +423,7 @@ export default function UsersPage() {
 
           {/* Step 1: Basic info */}
           {step === 1 && (
-            <div className="space-y-4">
+            <div className="space-y-3.5">
               {[
                 { label: "الاسم الكامل", field: "name", placeholder: "محمد العمري", type: "text" },
                 { label: "البريد الإلكتروني", field: "email", placeholder: "user@store.sa", type: "email" },
@@ -298,12 +431,15 @@ export default function UsersPage() {
                 { label: "رقم الهاتف (اختياري)", field: "phone", placeholder: "+966501234567", type: "text" },
               ].map(({ label, field, placeholder, type }) => (
                 <div key={field}>
-                  <label className="block text-sm font-medium mb-1.5">{label}</label>
-                  <input data-testid={`input-user-${field}`} type={type}
+                  <label className="block text-xs font-semibold mb-1.5">{label}</label>
+                  <input
+                    data-testid={`input-user-${field}`}
+                    type={type}
                     value={form[field as keyof typeof form]}
                     onChange={e => setForm(p => ({ ...p, [field]: e.target.value }))}
                     placeholder={placeholder}
-                    className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                    className="w-full h-11 px-3.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
                 </div>
               ))}
             </div>
@@ -311,21 +447,27 @@ export default function UsersPage() {
 
           {/* Step 2: AI keys */}
           {step === 2 && (
-            <div className="space-y-4">
+            <div className="space-y-3.5">
               <div>
-                <label className="block text-sm font-medium mb-1.5">نموذج الشات (Chat)</label>
-                <select data-testid="select-user-chatKeyId" value={form.chatKeyId}
+                <label className="block text-xs font-semibold mb-1.5">نموذج الشات (Chat)</label>
+                <select
+                  data-testid="select-user-chatKeyId"
+                  value={form.chatKeyId}
                   onChange={e => setForm(p => ({ ...p, chatKeyId: e.target.value }))}
-                  className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+                  className="w-full h-11 px-3 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
                   <option value="">بدون (اختياري)</option>
                   {chatKeys.map(k => <option key={k.id} value={k.id}>{k.name} — {k.model}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1.5">نموذج التضمين (Embedding)</label>
-                <select data-testid="select-user-embeddingKeyId" value={form.embeddingKeyId}
+                <label className="block text-xs font-semibold mb-1.5">نموذج التضمين (Embedding)</label>
+                <select
+                  data-testid="select-user-embeddingKeyId"
+                  value={form.embeddingKeyId}
                   onChange={e => setForm(p => ({ ...p, embeddingKeyId: e.target.value }))}
-                  className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+                  className="w-full h-11 px-3 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
                   <option value="">بدون (اختياري)</option>
                   {embeddingKeys.map(k => <option key={k.id} value={k.id}>{k.name} — {k.model}</option>)}
                 </select>
@@ -336,10 +478,8 @@ export default function UsersPage() {
           {/* Step 3: WhatsApp provider config */}
           {step === 3 && (
             <div className="space-y-4 max-h-[55vh] overflow-y-auto pe-1">
-              {/* Provider picker */}
               <ProviderSelector />
 
-              {/* Evolution note */}
               <div className="flex items-start gap-3 p-3.5 rounded-xl border border-violet-500/20 bg-violet-500/10 text-sm">
                 <span className="text-base">⚡</span>
                 <div>
@@ -352,21 +492,44 @@ export default function UsersPage() {
             </div>
           )}
 
-
-          <DialogFooter className="gap-2 mt-4">
-            {step > 1 && <button onClick={() => setStep(s => s - 1)} className="px-4 py-2 rounded-lg border border-border text-muted-foreground hover:bg-muted text-sm">السابق</button>}
-            <button onClick={() => setShowModal(false)} className="px-4 py-2 rounded-lg border border-border text-muted-foreground hover:bg-muted text-sm">إلغاء</button>
-            {step < 3
-              ? <button data-testid="btn-next-step" onClick={() => setStep(s => s + 1)} disabled={step === 1 && (!form.name || !form.email || !form.password)}
-                  className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all disabled:opacity-50">التالي</button>
-              : <button data-testid="btn-save-user" onClick={handleCreate} disabled={saving}
-                  className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all disabled:opacity-50">
-                  {saving ? "جاري الإنشاء..." : "إنشاء المستخدم"}
-                </button>
-            }
+          <DialogFooter className="gap-2 mt-4 pt-2 border-t border-border flex flex-col-reverse sm:flex-row">
+            {step > 1 && (
+              <button
+                onClick={() => setStep(s => s - 1)}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-border text-muted-foreground hover:bg-muted text-sm active:scale-95 transition-all"
+              >
+                السابق
+              </button>
+            )}
+            <button
+              onClick={() => setShowModal(false)}
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-border text-muted-foreground hover:bg-muted text-sm active:scale-95 transition-all"
+            >
+              إلغاء
+            </button>
+            {step < 3 ? (
+              <button
+                data-testid="btn-next-step"
+                onClick={() => setStep(s => s + 1)}
+                disabled={step === 1 && (!form.name || !form.email || !form.password)}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all disabled:opacity-50 active:scale-95 shadow-xs"
+              >
+                التالي
+              </button>
+            ) : (
+              <button
+                data-testid="btn-save-user"
+                onClick={handleCreate}
+                disabled={saving}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all disabled:opacity-50 active:scale-95 shadow-xs"
+              >
+                {saving ? "جاري الإنشاء..." : "إنشاء المستخدم"}
+              </button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }

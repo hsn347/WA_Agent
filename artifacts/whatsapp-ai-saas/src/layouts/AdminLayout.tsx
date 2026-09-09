@@ -3,12 +3,15 @@ import TopBar from "./TopBar";
 import MobileNav from "./MobileNav";
 import { useLocation } from "wouter";
 
-const titles: Record<string, string> = {
-  "/admin/keys": "إدارة المفاتيح",
-  "/admin/users": "إدارة المستخدمين",
-  "/admin/admins": "إدارة المسؤولين",
-  "/admin/settings": "إعدادات النظام",
-};
+function getAdminTitle(path: string): string {
+  if (path === "/admin/keys") return "إدارة المفاتيح";
+  if (path.startsWith("/admin/keys/")) return "تفاصيل المفتاح";
+  if (path === "/admin/users") return "إدارة المستخدمين";
+  if (path.startsWith("/admin/users/")) return "تفاصيل المستخدم";
+  if (path === "/admin/admins") return "إدارة المسؤولين";
+  if (path === "/admin/settings") return "إعدادات النظام";
+  return "لوحة الإدارة";
+}
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -18,14 +21,21 @@ interface AdminLayoutProps {
 
 export default function AdminLayout({ children, overrideTitle, noPadding }: AdminLayoutProps) {
   const [location] = useLocation();
-  const title = overrideTitle ?? titles[location] ?? "الإدارة";
+  const title = overrideTitle ?? getAdminTitle(location);
   const isFullCanvas = !!noPadding;
+
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-[100dvh] overflow-hidden bg-background select-text">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <TopBar title={title} />
-        <main className={isFullCanvas ? "flex-1 overflow-hidden" : "flex-1 overflow-y-auto p-4 md:p-6 pb-20 md:pb-6"}>
+        <main
+          className={
+            isFullCanvas
+              ? "flex-1 overflow-hidden"
+              : "flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 pb-24 md:pb-6 scroll-smooth"
+          }
+        >
           {children}
         </main>
       </div>
@@ -33,3 +43,4 @@ export default function AdminLayout({ children, overrideTitle, noPadding }: Admi
     </div>
   );
 }
+

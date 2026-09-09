@@ -45,39 +45,60 @@ export default function MobileNav() {
 
   return (
     <>
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-card border-t border-border flex items-center justify-around px-1 h-16 safe-area-bottom">
+      <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 bg-card/95 backdrop-blur-md border-t border-border flex items-center justify-around px-1 h-16 safe-area-bottom shadow-lg select-none">
         {bottomNav.map(({ href, label, icon: Icon }) => {
           const active = location === href || location.startsWith(href + "/");
           return (
             <Link key={href} href={href}>
-              <div className={cn("flex flex-col items-center gap-1 px-3 py-1 rounded-lg", active ? "text-primary" : "text-muted-foreground")}>
-                <Icon className="w-5 h-5" />
-                <span className="text-[10px] font-medium">{label}</span>
+              <div
+                className={cn(
+                  "flex flex-col items-center gap-0.5 px-2.5 py-1 rounded-xl transition-all duration-150 active:scale-95 cursor-pointer",
+                  active ? "text-primary font-bold" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <div className={cn("p-1 rounded-lg transition-colors", active && "bg-primary/15")}>
+                  <Icon className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] leading-tight">{label}</span>
               </div>
             </Link>
           );
         })}
-        <button data-testid="btn-mobile-menu" onClick={() => setDrawerOpen(true)} className="flex flex-col items-center gap-1 px-3 py-1 rounded-lg text-muted-foreground">
-          <Menu className="w-5 h-5" />
-          <span className="text-[10px] font-medium">القائمة</span>
+        <button
+          data-testid="btn-mobile-menu"
+          onClick={() => setDrawerOpen(true)}
+          className="flex flex-col items-center gap-0.5 px-2.5 py-1 rounded-xl text-muted-foreground hover:text-foreground active:scale-95 transition-all cursor-pointer"
+        >
+          <div className="p-1 rounded-lg">
+            <Menu className="w-5 h-5" />
+          </div>
+          <span className="text-[10px] leading-tight">القائمة</span>
         </button>
       </nav>
 
       {drawerOpen && (
         <div className="md:hidden fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setDrawerOpen(false)} />
-          <div className="absolute top-0 bottom-0 left-0 w-60 bg-sidebar shadow-2xl flex flex-col overflow-y-auto animate-in slide-in-from-left-1/2 fade-in duration-300 ease-out">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setDrawerOpen(false)} />
+          <div className="absolute top-0 bottom-0 left-0 w-64 max-w-[80vw] bg-sidebar shadow-2xl flex flex-col overflow-y-auto animate-in slide-in-from-left duration-200 ease-out">
             <div className="flex items-center justify-between px-5 py-4 border-b border-sidebar-border">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-sidebar-primary flex items-center justify-center">
-                  <Bot className="w-4 h-4 text-white" />
+                <div className="w-8 h-8 rounded-xl bg-sidebar-primary flex items-center justify-center shrink-0">
+                  {user?.role === "admin" ? <Shield className="w-4 h-4 text-white" /> : <Bot className="w-4 h-4 text-white" />}
                 </div>
-                <span className="font-bold text-sidebar-foreground text-sm">وكيل المبيعات</span>
+                <div>
+                  <span className="font-bold text-sidebar-foreground text-sm block leading-tight">
+                    {user?.role === "admin" ? "إدارة النظام" : "وكيل المبيعات"}
+                  </span>
+                  <span className="text-[10px] text-sidebar-accent-foreground">
+                    {user?.role === "admin" ? "لوحة التحكم الرئيسية" : "WhatsApp AI"}
+                  </span>
+                </div>
               </div>
-              <button onClick={() => setDrawerOpen(false)} className="text-sidebar-accent-foreground hover:text-sidebar-foreground">
+              <button onClick={() => setDrawerOpen(false)} className="text-sidebar-accent-foreground hover:text-sidebar-foreground p-1 rounded-lg">
                 <X className="w-5 h-5" />
               </button>
             </div>
+
             <nav className="flex-1 px-3 py-4 space-y-0.5">
               {drawerNav.map(({ href, label, icon: Icon }) => {
                 const active = location === href;
