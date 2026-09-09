@@ -36,13 +36,22 @@ export async function processTextFlow(
   isGroup = false,
 ): Promise<void> {
   try {
-    // 1. جلب بيانات المستخدم للتحقق من حالته (هل حسابه فعال أم لا)
+    // 1. جلب بيانات المستخدم للتحقق من حالته (هل حسابه فعال أم لا) واشتراكه
     const [user] = await db
       .select()
       .from(usersTable)
       .where(eq(usersTable.id, userId))
       .limit(1);
     if (!user || user.status !== "active") return;
+
+    // التحقق من صلاحية الاشتراك: إذا انتهى الوقت يتوقف البوت عن خدمة المستخدم
+    if (user.subscriptionExpiresAt && new Date(user.subscriptionExpiresAt).getTime() < Date.now()) {
+      logger.warn(
+        { userId, expiresAt: user.subscriptionExpiresAt },
+        "User subscription expired — bot service stopped",
+      );
+      return;
+    }
 
     // 2. جلب إعدادات المستخدم للتحقق مما إذا كان الوكيل (الرد الآلي) مفعلاً
     const [settings] = await db
@@ -976,6 +985,29 @@ export async function processEvolutionPayload(
 
     const remoteJid = key["remoteJid"] as string | undefined;
     if (!remoteJid || remoteJid.includes("status@broadcast")) return;
+
+    // ── فحص حالة المستخدم واشتراكه: إيقاف البوت فوراً إذا انتهى الاشتراك ──
+    const [payloadUser] = await db
+      .select({
+        status: usersTable.status,
+        subscriptionExpiresAt: usersTable.subscriptionExpiresAt,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.id, userId))
+      .limit(1);
+
+    if (!payloadUser || payloadUser.status !== "active") {
+      logger.info({ userId }, "User account not active — skipping message");
+      return;
+    }
+
+    if (payloadUser.subscriptionExpiresAt && new Date(payloadUser.subscriptionExpiresAt).getTime() < Date.now()) {
+      logger.warn(
+        { userId, expiresAt: payloadUser.subscriptionExpiresAt },
+        "User subscription expired — bot service stopped for this store",
+      );
+      return;
+    }
 
     const isGroup = remoteJid.endsWith("@g.us");
     const customerPhone = remoteJid

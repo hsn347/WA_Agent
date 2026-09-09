@@ -196,6 +196,16 @@ export const api = {
       apiFetch<void>(`/admin/users/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     delete: (id: number) =>
       apiFetch<{ ok: boolean }>(`/admin/users/${id}`, { method: "DELETE" }),
+    extendSubscription: (id: number, months: number) =>
+      apiFetch<{ ok: boolean; subscriptionExpiresAt: string | null }>(`/admin/users/${id}/subscription`, {
+        method: "POST",
+        body: JSON.stringify({ action: "extend", months }),
+      }),
+    setSubscription: (id: number, expiresAt: string | null) =>
+      apiFetch<{ ok: boolean; subscriptionExpiresAt: string | null }>(`/admin/users/${id}/subscription`, {
+        method: "POST",
+        body: JSON.stringify({ action: "set", expiresAt }),
+      }),
   },
 
   admins: {
@@ -480,6 +490,7 @@ export interface AdminUser {
   phone?: string;
   role: string;
   status: string;
+  subscriptionExpiresAt?: string | null;
   chatKeyId?: number;
   embeddingKeyId?: number;
   chatKeyName?: string;
@@ -504,6 +515,7 @@ export interface CreateUserPayload {
   embeddingKeyId?: number;
   waProvider?: string;
   waConfig?: Record<string, string>;
+  subscriptionMonths?: number;
 }
 
 export interface WAConfig {

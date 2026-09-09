@@ -3,12 +3,15 @@ import { useState, useEffect } from "react";
 import {
   ArrowRight, Edit2, Save, MessageCircle,
   Activity, Clock, Shield, X,
-  Mail, Phone, Calendar, RefreshCw
+  Mail, Phone, Calendar, RefreshCw,
+  Sparkles, AlertTriangle, CheckCircle2, Plus
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import WhatsAppConnectionWizard from "@/components/WhatsAppConnectionWizard";
 import { api, type AdminUser, type ApiKey } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import { getSubscriptionInfo } from "./UsersPage";
 
 const statusCfg: Record<string, { label: string; cls: string }> = {
   active:   { label: "نشط",    cls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20" },
@@ -39,7 +42,18 @@ export default function UserDetailPage() {
   const [editMode, setEditMode] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", phone: "", status: "active", chatKeyId: "", embeddingKeyId: "", chatFallbackKeyIds: [] as number[] });
+  const [extendingMonths, setExtendingMonths] = useState<number | null>(null);
+  const { toast } = useToast();
+  const [form, setForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    status: "active",
+    chatKeyId: "",
+    embeddingKeyId: "",
+    chatFallbackKeyIds: [] as number[],
+    subscriptionExpiresAt: "",
+  });
 
   const load = async () => {
     const [u, k] = await Promise.all([api.users.get(Number(id)), api.keys.list()]);
@@ -55,6 +69,7 @@ export default function UserDetailPage() {
       chatKeyId: u.chatKeyId ? String(u.chatKeyId) : "",
       embeddingKeyId: u.embeddingKeyId ? String(u.embeddingKeyId) : "",
       chatFallbackKeyIds: parsedFallbacks,
+      subscriptionExpiresAt: u.subscriptionExpiresAt ?? "",
     });
     setLoading(false);
   };
@@ -75,9 +90,60 @@ export default function UserDetailPage() {
   const waStatus = user.waStatus ?? "idle";
   const waCl = waCls[waStatus] ?? waCls.idle;
   const waLabel = waLabels[waStatus] ?? "لم يُعد";
+  const subInfo = getSubscriptionInfo(user.subscriptionExpiresAt);
+
+  const handleQuickExtend = async (months: number) => {
+    if (!user) return;
+    setExtendingMonths(months);
+    try {
+      const res = await api.users.extendSubscription(user.id, months);
+      const newExpiry = res.subscriptionExpiresAt;
+      setUser(u => u ? { ...u, subscriptionExpiresAt: newExpiry } : u);
+      setForm(p => ({ ...p, subscriptionExpiresAt: newExpiry ?? "" }));
+      const newDateStr = newExpiry
+        ? new Date(newExpiry).toLocaleDateString("ar-EG", { year: "numeric", month: "long", day: "numeric" })
+        : "";
+      toast({
+        title: "تم تمديد اشتراك البوت بنجاح ✓",
+        description: `تمت إضافة ${months === 1 ? "شهر كامل" : months === 12 ? "سنة كاملة" : `${months} أشهر`}، الصلاحية الجديدة حتى ${newDateStr}`,
+      });
+    } catch (err: any) {
+      toast({
+        title: "فشل تمديد الاشتراك",
+        description: err.message || "حدث خطأ أثناء الاتصال بالخادم",
+        variant: "destructive",
+      });
+    } finally {
+      setExtendingMonths(null);
+    }
+  };
+
+  const handleResetSubscription = async () => {
+    if (!user) return;
+    if (!confirm("هل أنت متأكد من إلغاء قيد الصلاحية؟ سيصبح الاشتراك مفتوحاً وغير محدد التاريخ.")) return;
+    setExtendingMonths(-1);
+    try {
+      await api.users.setSubscription(user.id, null);
+      setUser(u => u ? { ...u, subscriptionExpiresAt: null } : u);
+      setForm(p => ({ ...p, subscriptionExpiresAt: "" }));
+      toast({
+        title: "تم تحديث الاشتراك",
+        description: "تم إلغاء قيد تاريخ الانتهاء وأصبح الاشتراك مفتوحاً.",
+      });
+    } catch (err: any) {
+      toast({
+        title: "خطأ",
+        description: err.message || "حدث خطأ غير متوقع",
+        variant: "destructive",
+      });
+    } finally {
+      setExtendingMonths(null);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
+    const newExpiresAt = form.subscriptionExpiresAt ? form.subscriptionExpiresAt : null;
     await api.users.update(Number(id), {
       name: form.name,
       phone: form.phone,
@@ -85,8 +151,15 @@ export default function UserDetailPage() {
       chatKeyId: form.chatKeyId ? Number(form.chatKeyId) : null,
       embeddingKeyId: form.embeddingKeyId ? Number(form.embeddingKeyId) : null,
       chatFallbackKeyIds: form.chatFallbackKeyIds,
+      subscriptionExpiresAt: newExpiresAt,
     });
-    setUser(u => u ? { ...u, name: form.name, phone: form.phone, status: form.status } : u);
+    setUser(u => u ? {
+      ...u,
+      name: form.name,
+      phone: form.phone,
+      status: form.status,
+      subscriptionExpiresAt: newExpiresAt,
+    } : u);
     setSaved(true);
     setEditMode(false);
     setSaving(false);
@@ -141,6 +214,10 @@ export default function UserDetailPage() {
                   <span className={`w-1.5 h-1.5 rounded-full ${waStatus === "connected" ? "bg-emerald-500" : waStatus === "disconnected" ? "bg-amber-500" : "bg-muted-foreground"}`} />
                   {waLabel}
                 </span>
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${subInfo.badgeCls}`}>
+                  <Sparkles className="w-2.5 h-2.5" />
+                  {subInfo.label}
+                </span>
               </div>
             </div>
           </div>
@@ -158,6 +235,10 @@ export default function UserDetailPage() {
                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-xs font-medium ${waCl}`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${waStatus === "connected" ? "bg-emerald-500" : waStatus === "disconnected" ? "bg-amber-500" : "bg-muted-foreground"}`} />
                     {waLabel}
+                  </span>
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border text-xs font-semibold ${subInfo.badgeCls}`}>
+                    <Sparkles className="w-3 h-3" />
+                    {subInfo.label}
                   </span>
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
                     <Calendar className="w-3 h-3" />
@@ -292,65 +373,236 @@ export default function UserDetailPage() {
 
       {/* Tab 1: Overview */}
       {activeTab === "overview" && (
-        <div className="bg-card border border-card-border rounded-2xl p-4 sm:p-6 shadow-sm space-y-4 sm:space-y-5">
-          <div className="flex items-center justify-between">
-            <h3 className="font-bold text-foreground text-sm sm:text-base">البيانات الأساسية</h3>
-            {editMode && <span className="text-xs text-primary font-medium">وضع التعديل نشط</span>}
-          </div>
-          <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
-            {[
-              { label: "الاسم الكامل", field: "name" as const, type: "text" },
-              { label: "رقم الهاتف", field: "phone" as const, type: "tel" },
-            ].map(({ label, field, type }) => (
-              <div key={field}>
-                <label className="block text-xs font-medium text-muted-foreground mb-1.5">{label}</label>
-                {editMode ? (
-                  <input
-                    type={type}
-                    value={form[field]}
-                    onChange={e => setForm(p => ({ ...p, [field]: e.target.value }))}
-                    className="w-full h-11 px-3.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
-                ) : (
-                  <p className="text-sm font-medium text-foreground px-3.5 py-2.5 bg-muted/30 rounded-xl">{form[field] || "—"}</p>
-                )}
+        <div className="space-y-4 sm:space-y-5">
+          {/* Subscription & Bot Validity Card */}
+          <div className="bg-card border border-card-border rounded-2xl p-4 sm:p-6 shadow-sm space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-foreground text-sm sm:text-base">اشتراك وصلاحية البوت</h3>
+                  <p className="text-xs text-muted-foreground">التحكم في فترة تشغيل واستجابة الوكيل الذكي لهذا المتجر</p>
+                </div>
               </div>
-            ))}
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">البريد الإلكتروني</label>
-              <p className="text-sm font-medium text-foreground px-3.5 py-2.5 bg-muted/30 rounded-xl dir-ltr text-right">{user.email}</p>
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-xs font-semibold ${subInfo.badgeCls}`}>
+                {subInfo.status === "expired" ? (
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                ) : subInfo.status === "active" ? (
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                ) : (
+                  <Clock className="w-3.5 h-3.5" />
+                )}
+                {subInfo.label}
+              </span>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-muted-foreground mb-1.5">حالة الحساب</label>
-              {editMode ? (
-                <select
-                  value={form.status}
-                  onChange={e => setForm(p => ({ ...p, status: e.target.value }))}
-                  className="w-full h-11 px-3.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+
+            {/* Status Notice Banner */}
+            {subInfo.status === "expired" ? (
+              <div className="p-3.5 rounded-xl bg-red-500/10 border border-red-500/25 flex items-start gap-3 text-red-700 dark:text-red-400 text-xs sm:text-sm">
+                <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-red-500" />
+                <div>
+                  <p className="font-bold">تنبيه: الاشتراك منتهي الصلاحية والخدمة متوقفة تلقائياً</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    توقف البوت عن معالجة والرد على رسائل عملاء الواتساب لهذا المتجر. يمكنك تمديد الاشتراك لشهر أو أكثر بالأسفل لإعادة تفعيل الخدمة فوراً.
+                  </p>
+                </div>
+              </div>
+            ) : subInfo.status === "expiring_soon" ? (
+              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-start gap-3 text-amber-700 dark:text-amber-300 text-xs sm:text-sm">
+                <Clock className="w-5 h-5 shrink-0 mt-0.5 text-amber-500" />
+                <div>
+                  <p className="font-bold">تنبيه: الاشتراك يوشك على الانتهاء</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    متبقي {subInfo.daysLeft} {subInfo.daysLeft === 1 ? "يوم واحد" : "أيام"} فقط على انتهاء فترة الاشتراك. بادر بالتمديد لتجنب توقف البوت المفاجئ.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-start gap-3 text-emerald-700 dark:text-emerald-400 text-xs sm:text-sm">
+                <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5 text-emerald-500" />
+                <div>
+                  <p className="font-bold">خدمة البوت نشطة وسارية</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    يعمل الوكيل الذكي بكامل طاقته للرد على العملاء واستقبال المحادثات على الواتساب.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Expiry Details */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-xl bg-muted/30 border border-border/50">
+              <div>
+                <span className="block text-[11px] text-muted-foreground font-medium mb-1">تاريخ انتهاء الصلاحية:</span>
+                <span className="text-sm font-bold text-foreground">
+                  {user.subscriptionExpiresAt ? (
+                    new Date(user.subscriptionExpiresAt).toLocaleDateString("ar-EG", {
+                      weekday: "long",
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })
+                  ) : (
+                    <span className="text-muted-foreground font-normal">غير محدد (مفتوح بدون حد)</span>
+                  )}
+                </span>
+              </div>
+              <div>
+                <span className="block text-[11px] text-muted-foreground font-medium mb-1">المدة المتبقية:</span>
+                <span className="text-sm font-bold text-foreground">
+                  {subInfo.daysLeft !== null ? (
+                    subInfo.daysLeft > 0 ? (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">{subInfo.daysLeft} يوم متبقي</span>
+                    ) : (
+                      <span className="text-red-600 dark:text-red-400 font-bold">انتهت الصلاحية (متوقف)</span>
+                    )
+                  ) : (
+                    <span className="text-muted-foreground font-normal">غير مقيد بمدة</span>
+                  )}
+                </span>
+              </div>
+            </div>
+
+            {/* Quick Extension Actions */}
+            <div className="space-y-2 pt-1">
+              <span className="block text-xs font-semibold text-foreground">
+                تمديد الاشتراك بضغطة زر (يُضاف للمدة الحالية إذا كانت نشطة، أو يبدأ من اليوم إذا كانت منتهية):
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <button
+                  type="button"
+                  data-testid="btn-extend-1m"
+                  onClick={() => handleQuickExtend(1)}
+                  disabled={extendingMonths !== null}
+                  className="h-11 px-3 rounded-xl border border-primary/40 bg-primary/10 hover:bg-primary/15 text-primary font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
                 >
-                  <option value="active">نشط</option>
-                  <option value="pending">معلق</option>
-                  <option value="disabled">موقوف</option>
-                </select>
-              ) : (
-                <div className="px-3.5 py-2 bg-muted/30 rounded-xl">
-                  <Badge className={`text-xs ${statusCfg[form.status]?.cls}`}>{statusCfg[form.status]?.label}</Badge>
+                  {extendingMonths === 1 ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                  <span>+ شهر كامل</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="btn-extend-3m"
+                  onClick={() => handleQuickExtend(3)}
+                  disabled={extendingMonths !== null}
+                  className="h-11 px-3 rounded-xl border border-border bg-muted/40 hover:bg-muted font-bold text-xs text-foreground flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {extendingMonths === 3 ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                  <span>+ 3 أشهر</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="btn-extend-6m"
+                  onClick={() => handleQuickExtend(6)}
+                  disabled={extendingMonths !== null}
+                  className="h-11 px-3 rounded-xl border border-border bg-muted/40 hover:bg-muted font-bold text-xs text-foreground flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {extendingMonths === 6 ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                  <span>+ 6 أشهر</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="btn-extend-12m"
+                  onClick={() => handleQuickExtend(12)}
+                  disabled={extendingMonths !== null}
+                  className="h-11 px-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {extendingMonths === 12 ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                  <span>+ سنة كاملة</span>
+                </button>
+              </div>
+
+              {user.subscriptionExpiresAt && (
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={handleResetSubscription}
+                    disabled={extendingMonths !== null}
+                    className="text-xs text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-40"
+                  >
+                    إلغاء قيد الصلاحية (جعله مفتوح غير محدد)
+                  </button>
                 </div>
               )}
             </div>
           </div>
-          {editMode && (
-            <div className="flex justify-end pt-2">
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="w-full sm:w-auto h-11 px-6 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
-              >
-                <Save className="w-4 h-4" />
-                <span>{saving ? "جاري الحفظ…" : "حفظ التغييرات"}</span>
-              </button>
+
+          {/* Basic User Info Card */}
+          <div className="bg-card border border-card-border rounded-2xl p-4 sm:p-6 shadow-sm space-y-4 sm:space-y-5">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-foreground text-sm sm:text-base">البيانات الأساسية</h3>
+              {editMode && <span className="text-xs text-primary font-medium">وضع التعديل نشط</span>}
             </div>
-          )}
+            <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
+              {[
+                { label: "الاسم الكامل", field: "name" as const, type: "text" },
+                { label: "رقم الهاتف", field: "phone" as const, type: "tel" },
+              ].map(({ label, field, type }) => (
+                <div key={field}>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1.5">{label}</label>
+                  {editMode ? (
+                    <input
+                      type={type}
+                      value={form[field]}
+                      onChange={e => setForm(p => ({ ...p, [field]: e.target.value }))}
+                      className="w-full h-11 px-3.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  ) : (
+                    <p className="text-sm font-medium text-foreground px-3.5 py-2.5 bg-muted/30 rounded-xl">{form[field] || "—"}</p>
+                  )}
+                </div>
+              ))}
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">البريد الإلكتروني</label>
+                <p className="text-sm font-medium text-foreground px-3.5 py-2.5 bg-muted/30 rounded-xl dir-ltr text-right">{user.email}</p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">حالة الحساب</label>
+                {editMode ? (
+                  <select
+                    value={form.status}
+                    onChange={e => setForm(p => ({ ...p, status: e.target.value }))}
+                    className="w-full h-11 px-3.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="active">نشط</option>
+                    <option value="pending">معلق</option>
+                    <option value="disabled">موقوف</option>
+                  </select>
+                ) : (
+                  <div className="px-3.5 py-2 bg-muted/30 rounded-xl">
+                    <Badge className={`text-xs ${statusCfg[form.status]?.cls}`}>{statusCfg[form.status]?.label}</Badge>
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1.5">تاريخ نهاية الاشتراك</label>
+                {editMode ? (
+                  <input
+                    type="date"
+                    value={form.subscriptionExpiresAt ? form.subscriptionExpiresAt.slice(0, 10) : ""}
+                    onChange={e => setForm(p => ({ ...p, subscriptionExpiresAt: e.target.value ? new Date(e.target.value).toISOString() : "" }))}
+                    className="w-full h-11 px-3.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                ) : (
+                  <p className="text-sm font-medium text-foreground px-3.5 py-2.5 bg-muted/30 rounded-xl">
+                    {user.subscriptionExpiresAt ? new Date(user.subscriptionExpiresAt).toLocaleDateString("ar-EG") : "غير محدد (مفتوح)"}
+                  </p>
+                )}
+              </div>
+            </div>
+            {editMode && (
+              <div className="flex justify-end pt-2">
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="w-full sm:w-auto h-11 px-6 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{saving ? "جاري الحفظ…" : "حفظ التغييرات"}</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

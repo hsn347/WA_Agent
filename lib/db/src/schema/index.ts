@@ -18,6 +18,7 @@ export const usersTable = pgTable("users", {
   role: userRoleEnum("role").default("user").notNull(),
   status: userStatusEnum("status").default("active").notNull(),
   phone: text("phone"),
+  subscriptionExpiresAt: timestamp("subscription_expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   lastLoginAt: timestamp("last_login_at"),
 });

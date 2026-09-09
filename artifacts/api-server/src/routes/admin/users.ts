@@ -47,6 +47,7 @@ router.get("/", async (_req, res) => {
       return {
         id: u.id, name: u.name, email: u.email, phone: u.phone,
         role: u.role, status: u.status,
+        subscriptionExpiresAt: u.subscriptionExpiresAt ? u.subscriptionExpiresAt.toISOString() : null,
         chatKeyId: settings?.chatKeyId, embeddingKeyId: settings?.embeddingKeyId,
         chatKeyName, embeddingKeyName,
         waProvider: wa?.provider ?? "evolution",
@@ -77,6 +78,7 @@ router.get("/:id", async (req, res) => {
 
   res.json({
     id: u.id, name: u.name, email: u.email, phone: u.phone, role: u.role, status: u.status,
+    subscriptionExpiresAt: u.subscriptionExpiresAt ? u.subscriptionExpiresAt.toISOString() : null,
     chatKeyId: settings?.chatKeyId, chatFallbackKeyIds: settings?.chatFallbackKeyIds ?? "[]",
     embeddingKeyId: settings?.embeddingKeyId,
     waProvider: wa?.provider ?? "evolution",
@@ -92,10 +94,11 @@ router.get("/:id", async (req, res) => {
 
 // ── Create user ───────────────────────────────────────────────────────────────
 router.post("/", async (req, res) => {
-  const { name, email, password, phone, chatKeyId, embeddingKeyId, waProvider, waConfig } = req.body as {
+  const { name, email, password, phone, chatKeyId, embeddingKeyId, waProvider, waConfig, subscriptionMonths } = req.body as {
     name?: string; email?: string; password?: string; phone?: string;
     chatKeyId?: number; embeddingKeyId?: number;
     waProvider?: string; waConfig?: Record<string, string>;
+    subscriptionMonths?: number;
   };
 
   if (!name || !email || !password) {
@@ -103,9 +106,23 @@ router.post("/", async (req, res) => {
     return;
   }
 
+  // مدة الاشتراك الأولية (افتراضياً: شهر كامل إذا لم تُحدد)
+  let subscriptionExpiresAt: Date | null = null;
+  const months = subscriptionMonths !== undefined ? subscriptionMonths : 1;
+  if (months > 0) {
+    subscriptionExpiresAt = new Date();
+    subscriptionExpiresAt.setMonth(subscriptionExpiresAt.getMonth() + months);
+  }
+
   const passwordHash = await bcrypt.hash(password, 12);
   const [user] = await db.insert(usersTable)
-    .values({ name, email: email.toLowerCase().trim(), passwordHash, phone })
+    .values({
+      name,
+      email: email.toLowerCase().trim(),
+      passwordHash,
+      phone,
+      subscriptionExpiresAt,
+    })
     .returning();
 
   await db.insert(userSettingsTable).values({
@@ -131,6 +148,7 @@ router.post("/", async (req, res) => {
 
   res.status(201).json({
     id: user!.id, name, email, role: "user", status: "active",
+    subscriptionExpiresAt: subscriptionExpiresAt ? subscriptionExpiresAt.toISOString() : null,
     waProvider: "evolution", waConfig,
     createdAt: new Date().toISOString(),
   });
@@ -139,16 +157,20 @@ router.post("/", async (req, res) => {
 // ── Update user info ──────────────────────────────────────────────────────────
 router.put("/:id", async (req, res) => {
   const id = Number(req.params["id"]);
-  const { name, phone, status, chatKeyId, embeddingKeyId, agentEnabled, chatFallbackKeyIds } = req.body as {
+  const { name, phone, status, chatKeyId, embeddingKeyId, agentEnabled, chatFallbackKeyIds, subscriptionExpiresAt } = req.body as {
     name?: string; phone?: string; status?: string;
     chatKeyId?: number | null; embeddingKeyId?: number | null; agentEnabled?: boolean;
     chatFallbackKeyIds?: number[];
+    subscriptionExpiresAt?: string | null;
   };
 
   const userUpdates: Partial<typeof usersTable.$inferInsert> = {};
   if (name) userUpdates.name = name;
   if (phone !== undefined) userUpdates.phone = phone;
   if (status) userUpdates.status = status as "active" | "pending" | "disabled";
+  if (subscriptionExpiresAt !== undefined) {
+    userUpdates.subscriptionExpiresAt = subscriptionExpiresAt ? new Date(subscriptionExpiresAt) : null;
+  }
   if (Object.keys(userUpdates).length > 0) {
     await db.update(usersTable).set(userUpdates).where(eq(usersTable.id, id));
   }
@@ -164,6 +186,48 @@ router.put("/:id", async (req, res) => {
     .onConflictDoUpdate({ target: userSettingsTable.userId, set: settingsUpdates });
 
   res.json({ ok: true });
+});
+
+// ── Extend or set subscription ──────────────────────────────────────────────
+router.post("/:id/subscription", async (req, res) => {
+  const id = Number(req.params["id"]);
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.id, id)).limit(1);
+  if (!user) {
+    res.status(404).json({ message: "المستخدم غير موجود" });
+    return;
+  }
+
+  const { action, months, expiresAt } = req.body as {
+    action?: "extend" | "set";
+    months?: number;
+    expiresAt?: string | null;
+  };
+
+  let newExpiry: Date | null = null;
+
+  if (action === "extend") {
+    const m = Math.max(1, months ?? 1);
+    // إذا كان الاشتراك لا يزال سارياً في المستقبل، نمدد من تاريخ انتهائه لعدم تضييع أيام المستخدم
+    const now = Date.now();
+    const currentExp = user.subscriptionExpiresAt ? new Date(user.subscriptionExpiresAt).getTime() : 0;
+    const baseDate = currentExp > now ? new Date(currentExp) : new Date();
+    newExpiry = new Date(baseDate);
+    newExpiry.setMonth(newExpiry.getMonth() + m);
+  } else if (action === "set") {
+    newExpiry = expiresAt ? new Date(expiresAt) : null;
+  } else {
+    res.status(400).json({ message: "إجراء غير صالح" });
+    return;
+  }
+
+  await db.update(usersTable)
+    .set({ subscriptionExpiresAt: newExpiry })
+    .where(eq(usersTable.id, id));
+
+  res.json({
+    ok: true,
+    subscriptionExpiresAt: newExpiry ? newExpiry.toISOString() : null,
+  });
 });
 
 // ── Update WhatsApp config (any provider) ─────────────────────────────────────

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   Plus, Edit2, Trash2, Users, UserCheck, Clock, Wifi, WifiOff,
-  AlertCircle, TriangleAlert, Search, Mail, Phone, Calendar, ChevronLeft
+  AlertCircle, TriangleAlert, Search, Mail, Phone, Calendar, ChevronLeft, Sparkles, Check
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -10,6 +10,44 @@ import { api, type AdminUser, type ApiKey } from "@/lib/api";
 import { WA_PROVIDERS } from "@/lib/waProviders";
 import { ProviderSelector } from "@/components/WhatsAppProviderConfig";
 import { useToast } from "@/hooks/use-toast";
+
+export function getSubscriptionInfo(expiresAt?: string | null) {
+  if (!expiresAt) {
+    return {
+      status: "none" as const,
+      label: "غير محدد",
+      daysLeft: null,
+      badgeCls: "bg-muted text-muted-foreground border-border",
+    };
+  }
+  const exp = new Date(expiresAt).getTime();
+  const now = Date.now();
+  const diffMs = exp - now;
+  const days = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+  if (days <= 0) {
+    return {
+      status: "expired" as const,
+      label: "منتهي الصلاحية",
+      daysLeft: 0,
+      badgeCls: "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/20",
+    };
+  }
+  if (days <= 3) {
+    return {
+      status: "expiring_soon" as const,
+      label: `ينتهي خلال ${days} ${days === 1 ? "يوم" : "أيام"}`,
+      daysLeft: days,
+      badgeCls: "bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/20",
+    };
+  }
+  return {
+    status: "active" as const,
+    label: `نشط (متبقي ${days} يوم)`,
+    daysLeft: days,
+    badgeCls: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
+  };
+}
 
 const statusConfig = {
   active:   { label: "نشط",   className: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20" },
@@ -32,16 +70,40 @@ export default function UsersPage() {
   const [showModal, setShowModal] = useState(false);
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [subscriptionTarget, setSubscriptionTarget] = useState<AdminUser | null>(null);
+  const [extending, setExtending] = useState(false);
   const [form, setForm] = useState({
     name: "", email: "", password: "", phone: "",
     chatKeyId: "", embeddingKeyId: "",
     waProvider: "evolution",
+    subscriptionMonths: 1,
   });
   const [waConfig, setWaConfig] = useState<Record<string, string>>({});
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+
+  const handleExtendSubscription = async (userId: number, months: number) => {
+    setExtending(true);
+    try {
+      const res = await api.users.extendSubscription(userId, months);
+      toast({
+        title: "تم تمديد الاشتراك",
+        description: `تمت إضافة ${months} ${months === 1 ? "شهر" : "أشهر"} بنجاح`,
+      });
+      setUsers(prev => prev.map(u => u.id === userId ? { ...u, subscriptionExpiresAt: res.subscriptionExpiresAt } : u));
+      setSubscriptionTarget(null);
+    } catch (err: unknown) {
+      toast({
+        title: "خطأ",
+        description: err instanceof Error ? err.message : "فشل تمديد الاشتراك",
+        variant: "destructive",
+      });
+    } finally {
+      setExtending(false);
+    }
+  };
 
   const load = async () => {
     try {
@@ -82,9 +144,10 @@ export default function UsersPage() {
         embeddingKeyId: form.embeddingKeyId ? Number(form.embeddingKeyId) : undefined,
         waProvider: form.waProvider,
         waConfig: Object.keys(waConfig).length > 0 ? waConfig : undefined,
+        subscriptionMonths: form.subscriptionMonths,
       });
       setUsers(prev => [...prev, created]);
-      setForm({ name: "", email: "", password: "", phone: "", chatKeyId: "", embeddingKeyId: "", waProvider: "evolution" });
+      setForm({ name: "", email: "", password: "", phone: "", chatKeyId: "", embeddingKeyId: "", waProvider: "evolution", subscriptionMonths: 1 });
       setWaConfig({});
       setShowModal(false);
       setStep(1);
@@ -178,10 +241,11 @@ export default function UsersPage() {
               <p className="text-sm font-medium">لا يوجد مستخدمون مطابقون</p>
             </div>
           )}
-          {filteredUsers.map(user => {
+          {!loading && filteredUsers.map(user => {
             const waKey = (user.waStatus ?? "idle") as keyof typeof waStatusConfig;
             const wa = waStatusConfig[waKey] ?? waStatusConfig.idle;
             const WaIcon = wa.Icon;
+            const sub = getSubscriptionInfo(user.subscriptionExpiresAt);
 
             return (
               <div
@@ -189,7 +253,7 @@ export default function UsersPage() {
                 onClick={() => setLocation(`/admin/users/${user.id}`)}
                 className="p-3.5 space-y-3 hover:bg-muted/30 active:bg-muted/50 transition-colors cursor-pointer"
               >
-                {/* Top Row: Avatar + Name + Status Badge */}
+                {/* Top Row: Avatar + Name + Status & Subscription Badges */}
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary shrink-0">
@@ -209,12 +273,18 @@ export default function UsersPage() {
                       )}
                     </div>
                   </div>
-                  <Badge className={`text-[10px] shrink-0 ${statusConfig[user.status as keyof typeof statusConfig]?.className}`}>
-                    {statusConfig[user.status as keyof typeof statusConfig]?.label}
-                  </Badge>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <Badge className={`text-[10px] ${statusConfig[user.status as keyof typeof statusConfig]?.className}`}>
+                      {statusConfig[user.status as keyof typeof statusConfig]?.label}
+                    </Badge>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-medium ${sub.badgeCls}`}>
+                      <Clock className="w-2.5 h-2.5" />
+                      <span>{sub.label}</span>
+                    </span>
+                  </div>
                 </div>
 
-                {/* Info row: Chat key + WhatsApp status + Date */}
+                {/* Info row: Chat key + WhatsApp status + Subscription */}
                 <div className="grid grid-cols-2 gap-2 bg-muted/20 p-2.5 rounded-xl border border-border/50 text-xs">
                   <div>
                     <span className="text-[10px] text-muted-foreground block">نموذج الشات:</span>
@@ -240,6 +310,15 @@ export default function UsersPage() {
                     <span>عرض التفاصيل</span>
                   </button>
                   <button
+                    data-testid={`btn-extend-user-${user.id}`}
+                    onClick={() => setSubscriptionTarget(user)}
+                    className="flex items-center justify-center gap-1 h-9 px-3 rounded-xl border border-primary/20 bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 active:scale-95 transition-all shrink-0"
+                    title="تمديد الاشتراك"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>تمديد</span>
+                  </button>
+                  <button
                     data-testid={`btn-delete-user-${user.id}`}
                     onClick={() => setDeleteTarget(user)}
                     className="flex items-center justify-center w-9 h-9 rounded-xl border border-red-500/20 bg-red-500/10 text-red-600 hover:bg-red-500/20 active:scale-95 transition-all shrink-0"
@@ -260,6 +339,7 @@ export default function UsersPage() {
               <tr className="border-b border-border bg-muted/30">
                 <th className="text-right px-4 py-3 text-xs text-muted-foreground font-semibold">المستخدم</th>
                 <th className="text-right px-4 py-3 text-xs text-muted-foreground font-semibold">الحالة</th>
+                <th className="text-right px-4 py-3 text-xs text-muted-foreground font-semibold">الاشتراك</th>
                 <th className="text-right px-4 py-3 text-xs text-muted-foreground font-semibold hidden md:table-cell">نموذج الشات</th>
                 <th className="text-right px-4 py-3 text-xs text-muted-foreground font-semibold hidden lg:table-cell">مزود واتساب</th>
                 <th className="text-right px-4 py-3 text-xs text-muted-foreground font-semibold">واتساب</th>
@@ -268,13 +348,14 @@ export default function UsersPage() {
               </tr>
             </thead>
             <tbody>
-              {loading && <tr><td colSpan={7} className="text-center py-8 text-muted-foreground text-sm">جاري التحميل...</td></tr>}
-              {!loading && filteredUsers.length === 0 && <tr><td colSpan={7} className="text-center py-8 text-muted-foreground text-sm">لا يوجد مستخدمون بعد</td></tr>}
+              {loading && <tr><td colSpan={8} className="text-center py-8 text-muted-foreground text-sm">جاري التحميل...</td></tr>}
+              {!loading && filteredUsers.length === 0 && <tr><td colSpan={8} className="text-center py-8 text-muted-foreground text-sm">لا يوجد مستخدمون بعد</td></tr>}
               {filteredUsers.map((user, i) => {
                 const waKey = (user.waStatus ?? "idle") as keyof typeof waStatusConfig;
                 const wa = waStatusConfig[waKey] ?? waStatusConfig.idle;
                 const WaIcon = wa.Icon;
                 const prov = WA_PROVIDERS.find(p => p.id === (user.waProvider ?? "evolution"));
+                const sub = getSubscriptionInfo(user.subscriptionExpiresAt);
                 return (
                   <tr key={user.id}
                     className={`border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer ${i % 2 === 0 ? "" : "bg-muted/10"}`}
@@ -294,6 +375,22 @@ export default function UsersPage() {
                       <Badge className={`text-[10px] ${statusConfig[user.status as keyof typeof statusConfig]?.className}`}>
                         {statusConfig[user.status as keyof typeof statusConfig]?.label}
                       </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[11px] font-semibold ${sub.badgeCls}`}>
+                          <Clock className="w-3 h-3" />
+                          <span>{sub.label}</span>
+                        </span>
+                        <button
+                          data-testid={`btn-desktop-extend-${user.id}`}
+                          onClick={() => setSubscriptionTarget(user)}
+                          className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-primary/10 text-primary transition-colors"
+                          title="تمديد الاشتراك"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell">
                       <span className="text-xs text-muted-foreground">{user.chatKeyName ?? "—"}</span>
@@ -442,6 +539,20 @@ export default function UsersPage() {
                   />
                 </div>
               ))}
+              <div>
+                <label className="block text-xs font-semibold mb-1.5">فترة الاشتراك الأولية</label>
+                <select
+                  value={form.subscriptionMonths}
+                  onChange={e => setForm(p => ({ ...p, subscriptionMonths: Number(e.target.value) }))}
+                  className="w-full h-11 px-3.5 rounded-xl border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value={1}>شهر واحد (30 يوماً - الافتراضي)</option>
+                  <option value={3}>3 أشهر (90 يوماً)</option>
+                  <option value={6}>6 أشهر (نصف سنة)</option>
+                  <option value={12}>سنة كاملة (12 شهراً)</option>
+                  <option value={0}>بدون انتهاء (اشتراك مفتوح)</option>
+                </select>
+              </div>
             </div>
           )}
 
@@ -530,6 +641,89 @@ export default function UsersPage() {
         </DialogContent>
       </Dialog>
 
+      {/* ── Subscription extension dialog ────────────────────────────── */}
+      <Dialog open={!!subscriptionTarget} onOpenChange={open => { if (!open && !extending) setSubscriptionTarget(null); }}>
+        <DialogContent className="w-[94vw] sm:max-w-md rounded-2xl p-4 sm:p-6" dir="rtl">
+          <DialogHeader>
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-base sm:text-lg font-bold">تمديد اشتراك المستخدم</DialogTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">{subscriptionTarget?.name}</p>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {subscriptionTarget && (() => {
+            const sub = getSubscriptionInfo(subscriptionTarget.subscriptionExpiresAt);
+            const expDate = subscriptionTarget.subscriptionExpiresAt
+              ? new Date(subscriptionTarget.subscriptionExpiresAt).toLocaleDateString("ar-SA", { year: "numeric", month: "long", day: "numeric" })
+              : "غير محدد";
+
+            return (
+              <div className="space-y-4 py-2">
+                {/* Current Status Box */}
+                <div className="p-3.5 rounded-xl bg-muted/40 border border-border space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground font-medium">حالة الاشتراك الحالية:</span>
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-xs font-semibold ${sub.badgeCls}`}>
+                      {sub.label}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">تاريخ الانتهاء:</span>
+                    <span className="font-semibold text-foreground">{expDate}</span>
+                  </div>
+                </div>
+
+                <p className="text-xs font-semibold text-foreground">اختر المدة المراد إضافتها للاشتراك:</p>
+
+                {/* Quick Extension Buttons */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  {[
+                    { months: 1, label: "+ شهر كامل", desc: "إضافة 30 يوماً" },
+                    { months: 3, label: "+ 3 أشهر", desc: "إضافة 90 يوماً" },
+                    { months: 6, label: "+ 6 أشهر", desc: "إضافة 180 يوماً" },
+                    { months: 12, label: "+ سنة كاملة", desc: "إضافة 365 يوماً" },
+                  ].map(({ months, label, desc }) => (
+                    <button
+                      key={months}
+                      onClick={() => handleExtendSubscription(subscriptionTarget.id, months)}
+                      disabled={extending}
+                      className="p-3 rounded-xl border border-border bg-card hover:bg-primary/5 hover:border-primary/40 text-right transition-all active:scale-95 disabled:opacity-50"
+                    >
+                      <p className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-primary" />
+                        <span>{label}</span>
+                      </p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">{desc}</p>
+                    </button>
+                  ))}
+                </div>
+
+                {extending && (
+                  <div className="text-center py-2 text-xs text-primary font-medium flex items-center justify-center gap-2">
+                    <span className="w-3.5 h-3.5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                    <span>جاري تحديث وتمديد الاشتراك...</span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          <DialogFooter className="pt-1">
+            <button
+              onClick={() => setSubscriptionTarget(null)}
+              disabled={extending}
+              className="w-full h-11 rounded-xl border border-border text-muted-foreground hover:bg-muted text-xs sm:text-sm font-semibold transition-all active:scale-95 disabled:opacity-50"
+            >
+              إغلاق
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,11 +1,17 @@
 import bcrypt from "bcryptjs";
-import { db } from "@workspace/db";
+import { db, pool } from "@workspace/db";
 import { usersTable, userSettingsTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
 import { logger } from "./logger.js";
 
 export async function seedDatabase() {
   try {
+    try {
+      await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMP;");
+    } catch (colErr) {
+      logger.warn({ err: colErr }, "Could not run ALTER TABLE for subscription_expires_at");
+    }
+
     const existing = await db
       .select({ id: usersTable.id })
       .from(usersTable)
