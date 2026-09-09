@@ -8,8 +8,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import WhatsAppConnectionWizard from "@/components/WhatsAppConnectionWizard";
-import WhatsAppProviderConfig from "@/components/WhatsAppProviderConfig";
-import { WA_PROVIDERS } from "@/lib/waProviders";
 import { api, type AdminUser, type ApiKey } from "@/lib/api";
 
 const statusCfg: Record<string, { label: string; cls: string }> = {
@@ -248,9 +246,9 @@ export default function UserDetailPage() {
               <div>
                 <h3 className="font-semibold text-foreground">ربط واتساب</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  المزود الحالي:{" "}
-                  <span className="font-semibold text-foreground">
-                    {WA_PROVIDERS.find(p => p.id === (user.waProvider ?? "evolution"))?.name ?? user.waProvider ?? "Evolution API"}
+                  المزود المعتمد:{" "}
+                  <span className="font-semibold text-violet-600 dark:text-violet-400">
+                    ⚡ Evolution API
                   </span>
                 </p>
               </div>
@@ -260,31 +258,18 @@ export default function UserDetailPage() {
             </div>
           </div>
 
-          {/* Provider config & switcher — always visible */}
+          {/* Evolution wizard */}
           <div className="bg-card border border-card-border rounded-2xl p-5 shadow-sm">
-            <h4 className="font-semibold text-foreground text-sm mb-4">إعدادات المزود</h4>
-            <WhatsAppProviderConfig
+            <h4 className="font-semibold text-foreground text-sm mb-4">⚡ معالج ربط Evolution API</h4>
+            <WhatsAppConnectionWizard
               userId={user.id}
-              initialProvider={user.waProvider ?? "evolution"}
-              initialConfig={user.waConfig ?? {}}
-              onSaved={(provider, cfg) => setUser(u => u ? { ...u, waProvider: provider, waConfig: cfg, waStatus: "idle" } : u)}
+              waBaseUrl={user.waBaseUrl}
+              waApiKey=""
+              waInstanceName={user.waInstanceName}
+              waStatus={user.waStatus}
+              onConnected={() => setUser(u => u ? { ...u, waStatus: "connected" } : u)}
             />
           </div>
-
-          {/* Evolution wizard — only shown when provider is evolution */}
-          {(user.waProvider ?? "evolution") === "evolution" && (
-            <div className="bg-card border border-card-border rounded-2xl p-5 shadow-sm">
-              <h4 className="font-semibold text-foreground text-sm mb-4">⚡ معالج ربط Evolution API</h4>
-              <WhatsAppConnectionWizard
-                userId={user.id}
-                waBaseUrl={user.waBaseUrl}
-                waApiKey=""
-                waInstanceName={user.waInstanceName}
-                waStatus={user.waStatus}
-                onConnected={() => setUser(u => u ? { ...u, waStatus: "connected" } : u)}
-              />
-            </div>
-          )}
         </div>
       )}
 

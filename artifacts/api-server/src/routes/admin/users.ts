@@ -15,8 +15,6 @@ import {
   fetchEvolutionQrCode,
   setEvolutionWebhook,
 } from "../../lib/providers/evolution.js";
-import { testTwilioConnection } from "../../lib/providers/twilio.js";
-import { testDialog360Connection } from "../../lib/providers/dialog360.js";
 
 const router = Router();
 router.use(requireAdmin);
@@ -117,27 +115,23 @@ router.post("/", async (req, res) => {
     agentEnabled: true,
   });
 
-  const provider = waProvider ?? "evolution";
-  const configJson = waConfig ? JSON.stringify(waConfig) : null;
-
-  // For evolution, store baseUrl/apiKey/instanceName from waConfig; for others, store in config column
-  const baseUrl = provider === "evolution" ? (waConfig?.baseUrl ?? null) : null;
-  const apiKey  = provider === "evolution" ? (waConfig?.apiKey  ?? null) : null;
-  const instanceName = provider === "evolution" ? (waConfig?.instanceName ?? null) : null;
+  const baseUrl = waConfig?.baseUrl ?? null;
+  const apiKey  = waConfig?.apiKey  ?? null;
+  const instanceName = waConfig?.instanceName ?? null;
 
   await db.insert(whatsappConnectionsTable).values({
     userId: user!.id,
-    provider,
+    provider: "evolution",
     baseUrl,
     apiKey,
     instanceName,
-    config: provider !== "evolution" ? configJson : null,
+    config: null,
     status: "idle",
   });
 
   res.status(201).json({
     id: user!.id, name, email, role: "user", status: "active",
-    waProvider: provider, waConfig,
+    waProvider: "evolution", waConfig,
     createdAt: new Date().toISOString(),
   });
 });
@@ -181,28 +175,25 @@ router.put("/:id/whatsapp", async (req, res) => {
     config?: Record<string, string>;
   };
 
-  const prov = provider ?? "evolution";
-  const configJson = config ? JSON.stringify(config) : null;
-
   await db.insert(whatsappConnectionsTable)
     .values({
       userId: id,
-      provider: prov,
-      baseUrl: prov === "evolution" ? (baseUrl ?? null) : null,
-      apiKey:  prov === "evolution" ? (apiKey  ?? null) : null,
-      instanceName: prov === "evolution" ? (instanceName ?? null) : null,
-      config: prov !== "evolution" ? configJson : null,
+      provider: "evolution",
+      baseUrl: baseUrl ?? null,
+      apiKey: apiKey ?? null,
+      instanceName: instanceName ?? null,
+      config: null,
       status: "idle",
       updatedAt: new Date(),
     })
     .onConflictDoUpdate({
       target: whatsappConnectionsTable.userId,
       set: {
-        provider: prov,
-        baseUrl: prov === "evolution" ? (baseUrl ?? null) : null,
-        apiKey:  prov === "evolution" ? (apiKey  ?? null) : null,
-        instanceName: prov === "evolution" ? (instanceName ?? null) : null,
-        config: prov !== "evolution" ? configJson : null,
+        provider: "evolution",
+        baseUrl: baseUrl ?? null,
+        apiKey: apiKey ?? null,
+        instanceName: instanceName ?? null,
+        config: null,
         status: "idle",
         updatedAt: new Date(),
       },
@@ -211,56 +202,21 @@ router.put("/:id/whatsapp", async (req, res) => {
   res.json({ ok: true });
 });
 
-// ── Test WhatsApp connection (all providers) ───────────────────────────────────
+// ── Test WhatsApp connection (Evolution API) ──────────────────────────────────
 router.post("/:id/whatsapp/test", async (req, res) => {
   const id = Number(req.params["id"]);
   const [wa] = await db.select().from(whatsappConnectionsTable).where(eq(whatsappConnectionsTable.userId, id)).limit(1);
   if (!wa) { res.json({ success: false, message: "لم يتم إعداد واتساب بعد" }); return; }
 
-  const provider = wa.provider ?? "evolution";
-
-  if (provider === "evolution") {
-    if (!wa.baseUrl || !wa.apiKey || !wa.instanceName) {
-      res.json({ success: false, message: "يجب إدخال بيانات Evolution (Base URL، API Key، Instance Name)" });
-      return;
-    }
-    const result = await testEvolutionConnection({ baseUrl: wa.baseUrl, apiKey: wa.apiKey, instanceName: wa.instanceName });
-    await db.update(whatsappConnectionsTable)
-      .set({ status: result.success ? "connected" : "error", updatedAt: new Date() })
-      .where(eq(whatsappConnectionsTable.userId, id));
-    res.json(result); return;
+  if (!wa.baseUrl || !wa.apiKey || !wa.instanceName) {
+    res.json({ success: false, message: "يجب إدخال بيانات Evolution (Base URL، API Key، Instance Name)" });
+    return;
   }
-
-  let cfg: Record<string, string> = {};
-  if (wa.config) { try { cfg = JSON.parse(wa.config); } catch { /* */ } }
-
-  if (provider === "twilio") {
-    if (!cfg.accountSid || !cfg.authToken) {
-      res.json({ success: false, message: "يجب إدخال Account SID و Auth Token" }); return;
-    }
-    const result = await testTwilioConnection({ accountSid: cfg.accountSid, authToken: cfg.authToken, fromNumber: cfg.fromNumber ?? "" });
-    await db.update(whatsappConnectionsTable)
-      .set({ status: result.success ? "connected" : "error", updatedAt: new Date() })
-      .where(eq(whatsappConnectionsTable.userId, id));
-    res.json(result); return;
-  }
-
-  if (provider === "360dialog") {
-    if (!cfg.apiKey) {
-      res.json({ success: false, message: "يجب إدخال مفتاح API" }); return;
-    }
-    const result = await testDialog360Connection({ apiKey: cfg.apiKey, phoneNumber: cfg.phoneNumber ?? "" });
-    await db.update(whatsappConnectionsTable)
-      .set({ status: result.success ? "connected" : "error", updatedAt: new Date() })
-      .where(eq(whatsappConnectionsTable.userId, id));
-    res.json(result); return;
-  }
-
-  // Meta / Gupshup — just mark as configured (no auto-test yet)
+  const result = await testEvolutionConnection({ baseUrl: wa.baseUrl, apiKey: wa.apiKey, instanceName: wa.instanceName });
   await db.update(whatsappConnectionsTable)
-    .set({ status: "disconnected", updatedAt: new Date() })
+    .set({ status: result.success ? "connected" : "error", updatedAt: new Date() })
     .where(eq(whatsappConnectionsTable.userId, id));
-  res.json({ success: true, message: "تم حفظ الإعدادات — يرجى التحقق من إعداد الـ Webhook في لوحة " + provider });
+  res.json(result);
 });
 
 // ── Delete user & all data ────────────────────────────────────────────────────

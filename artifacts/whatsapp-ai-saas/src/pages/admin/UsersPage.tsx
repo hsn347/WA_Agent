@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { useLocation } from "wouter";
 import { api, type AdminUser, type ApiKey } from "@/lib/api";
 import { WA_PROVIDERS } from "@/lib/waProviders";
-import { ProviderSelector, ProviderFields } from "@/components/WhatsAppProviderConfig";
+import { ProviderSelector } from "@/components/WhatsAppProviderConfig";
 import { useToast } from "@/hooks/use-toast";
 
 const statusConfig = {
@@ -337,44 +337,21 @@ export default function UsersPage() {
           {step === 3 && (
             <div className="space-y-4 max-h-[55vh] overflow-y-auto pe-1">
               {/* Provider picker */}
-              <ProviderSelector
-                value={form.waProvider}
-                onChange={v => { setForm(p => ({ ...p, waProvider: v })); setWaConfig({}); }}
-              />
-
-              {/* Provider-specific fields */}
-              {form.waProvider !== "evolution" && (
-                <ProviderFields
-                  provider={form.waProvider}
-                  config={waConfig}
-                  onChange={(k, v) => setWaConfig(p => ({ ...p, [k]: v }))}
-                />
-              )}
+              <ProviderSelector />
 
               {/* Evolution note */}
-              {form.waProvider === "evolution" && (
-                <div className={`flex items-start gap-3 p-3.5 rounded-xl border ${providerMeta.bg} text-sm`}>
-                  <span className="text-base">{providerMeta.logo}</span>
-                  <div>
-                    <p className={`font-semibold text-xs ${providerMeta.color}`}>Evolution API — ربط عبر QR Code</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      بعد إنشاء المستخدم، ادخل على صفحته واضغط على تبويب «ربط واتساب» لإدخال بيانات الخادم ومسح الـ QR Code.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Webhook info for non-evolution */}
-              {form.waProvider !== "evolution" && (
-                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-                  <p className="text-xs font-semibold text-amber-600 dark:text-amber-300 mb-1">معلومة مهمة</p>
-                  <p className="text-xs text-muted-foreground">
-                    بعد إنشاء المستخدم ستجد في صفحته رابط الـ Webhook الخاص به — أدخله في إعدادات {providerMeta.name} لاستقبال الرسائل.
+              <div className="flex items-start gap-3 p-3.5 rounded-xl border border-violet-500/20 bg-violet-500/10 text-sm">
+                <span className="text-base">⚡</span>
+                <div>
+                  <p className="font-semibold text-xs text-violet-600 dark:text-violet-400">Evolution API — ربط عبر QR Code</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    بعد إنشاء المستخدم، ادخل على صفحته واضغط على تبويب «ربط واتساب» لإدخال بيانات الخادم ومسح الـ QR Code.
                   </p>
                 </div>
-              )}
+              </div>
             </div>
           )}
+
 
           <DialogFooter className="gap-2 mt-4">
             {step > 1 && <button onClick={() => setStep(s => s - 1)} className="px-4 py-2 rounded-lg border border-border text-muted-foreground hover:bg-muted text-sm">السابق</button>}
