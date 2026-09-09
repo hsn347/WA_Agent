@@ -271,7 +271,7 @@ export default function UsersPage() {
                 setShowModal(true);
                 setStep(1);
                 setWaConfig({});
-                setForm({ name: "", email: "", password: "", phone: "", chatKeyId: "", embeddingKeyId: "", waProvider: "evolution" });
+                setForm({ name: "", email: "", password: "", phone: "", chatKeyId: "", embeddingKeyId: "", waProvider: "evolution", subscriptionMonths: 1 });
               }}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-all shadow-xs active:scale-95 shrink-0"
             >
