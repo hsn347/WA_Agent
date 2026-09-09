@@ -11,6 +11,7 @@ import {
 import { eq, and, gte, lt, count, isNull, or, inArray } from "drizzle-orm";
 import { sendEvolutionMessage } from "./providers/evolution.js";
 import { logger } from "./logger.js";
+import { processScheduledBroadcasts } from "../routes/user/broadcast.js";
 
 export type ReportPeriod = "daily" | "weekly" | "monthly";
 
@@ -339,6 +340,7 @@ export function startReportScheduler(): void {
   setInterval(() => {
     runReportScheduler().catch((err) => logger.error({ err }, "Report scheduler tick failed"));
     runFollowupScheduler().catch((err) => logger.error({ err }, "Followup scheduler tick failed"));
+    processScheduledBroadcasts().catch((err) => logger.error({ err }, "Broadcast scheduler tick failed"));
   }, 60_000);
   logger.info("Report scheduler started (checks every minute)");
 }
@@ -395,11 +397,38 @@ export async function runFollowupScheduler(): Promise<void> {
           ? `مرحباً ${name} 👋\nلاحظنا أنك كنت مهتماً بـ: *${itemsText}*\nهل تحتاج أي مساعدة لإتمام طلبك؟ نحن هنا ومستعدون! 😊`
           : `مرحباً ${name} 👋\nلاحظنا أن طلبك لم يكتمل بعد.\nهل تحتاج أي مساعدة؟ نحن هنا ومستعدون لمساعدتك! 😊`;
 
-        await sendEvolutionMessage(
+        const sent = await sendEvolutionMessage(
           { baseUrl: wa.baseUrl, apiKey: wa.apiKey, instanceName: wa.instanceName },
           order.senderPhone,
           message,
-        ).catch(() => {});
+        ).catch(() => false);
+
+        if (sent) {
+          try {
+            const [conv] = await db
+              .select({ id: conversationsTable.id })
+              .from(conversationsTable)
+              .where(
+                and(
+                  eq(conversationsTable.userId, user.userId),
+                  eq(conversationsTable.customerPhone, order.senderPhone),
+                ),
+              )
+              .limit(1);
+
+            if (conv) {
+              await db.insert(messagesTable).values({
+                conversationId: conv.id,
+                from: "agent",
+                text: message,
+              });
+              await db
+                .update(conversationsTable)
+                .set({ lastMessage: message, updatedAt: new Date() })
+                .where(eq(conversationsTable.id, conv.id));
+            }
+          } catch {}
+        }
 
         await db
           .update(ordersTable)

@@ -184,7 +184,9 @@ export async function processTextFlow(
     // 8. ── تحديد جلسات المحادثة (فجوة زمنية = جلسة جديدة لبدء ترحيب جديد) ────────
     const SESSION_GAP_MS = (globalAgent.sessionGapHours ?? 6) * 60 * 60 * 1000;
     const lastRow = historyRows[historyRows.length - 1];
+    const lastRowIsAgent = lastRow?.from === "agent";
     const isNewSession =
+      !lastRowIsAgent &&
       lastRow &&
       Date.now() - new Date(lastRow.createdAt).getTime() > SESSION_GAP_MS;
 
@@ -203,6 +205,11 @@ export async function processTextFlow(
             ? m.text.slice(0, MAX_MSG_CHARS) + "…"
             : m.text,
       }));
+
+      if (lastRowIsAgent) {
+        sessionNote =
+          "[تنبيه للوكيل: آخر رسالة في سجل المحادثة أعلاه مرسلة من طرفنا/المتجر إلى هذا العميل (رسالة جماعية/تسويقية أو متابعة). العميل الآن يرد عليها ويتفاعل معها. افهم استفسار العميل تماماً في ضوء الرسالة التي أرسلناها له وتجاوب معه بذكاء ودقة دون تجاهل العرض أو ما تم إرساله له.]";
+      }
     }
 
     let replyText: string | null = null;

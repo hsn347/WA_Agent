@@ -198,18 +198,37 @@ export async function generateGeminiReply(
 ): Promise<LLMResult> {
   const MAX_ATTEMPTS = 3;
 
-  const contents: GeminiConversationMessage[] = [];
+  const rawContents: GeminiConversationMessage[] = [];
 
   if (history && history.length > 0) {
     for (const msg of history) {
-      contents.push({
+      rawContents.push({
         role: msg.role === "assistant" ? "model" : "user",
         parts: [{ text: msg.content }],
       });
     }
   }
 
-  contents.push({ role: "user", parts: [{ text: userMessage }] });
+  rawContents.push({ role: "user", parts: [{ text: userMessage }] });
+
+  // Gemini API requires first turn to have role "user"
+  if (rawContents.length > 0 && rawContents[0]?.role === "model") {
+    rawContents.unshift({
+      role: "user",
+      parts: [{ text: "السلام عليكم" }],
+    });
+  }
+
+  // Gemini API requires roles to alternate strictly between "user" and "model"
+  const contents: GeminiConversationMessage[] = [];
+  for (const item of rawContents) {
+    const prev = contents[contents.length - 1];
+    if (prev && prev.role === item.role) {
+      prev.parts.push(...item.parts);
+    } else {
+      contents.push({ role: item.role, parts: [...item.parts] });
+    }
+  }
 
   const body: Record<string, unknown> = {
     contents,
